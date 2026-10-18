@@ -89,8 +89,8 @@ function display(value: unknown) {
   return String(value);
 }
 
-export default async function ControlRoomSection({ params }: { params: { section: string } }) {
-  const config = sections[params.section];
+export default async function ControlRoomSection({ params }: { params: { Section: string } }) {
+  const config = sections[params.Section];
   if (!config) notFound();
 
   const supabase = await createClient();
@@ -98,7 +98,7 @@ export default async function ControlRoomSection({ params }: { params: { section
     return <main className="p-8"><h1 className="text-2xl font-black">Admin setup required</h1><p className="mt-2">Configure Supabase environment variables and apply the SQL migrations.</p></main>;
   }
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(`/auth/sign-in?next=/control-room/${params.section}`);
+  if (!user) redirect(`/auth/sign-in?next=/control-room/${params.Section}`);
   const { data: profile } = await supabase.from('profiles').select('role,full_name').eq('id', user.id).maybeSingle();
   const staffRoles = ['owner', 'admin', 'finance', 'operations', 'content_manager'];
   if (!profile || !staffRoles.includes(profile.role)) redirect('/');
