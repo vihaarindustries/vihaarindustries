@@ -1,3 +1,107 @@
-import Link from 'next/link'; import Header from '@/components/Header';
-const products=[{name:'Onion Powder',type:'DEHYDRATED INGREDIENT',desc:'Versatile flavour. Consistent performance.',color:'#d9b5a1',emoji:'🧅',tag:'BESTSELLER'},{name:'Garlic Powder',type:'DEHYDRATED INGREDIENT',desc:'Rich aroma for food makers and kitchens.',color:'#e8ddbf',emoji:'🧄',tag:'FOOD INDUSTRY'},{name:'Mixed Spice Ingredients',type:'CUSTOM BLENDS',desc:'Ingredients and formats built around your needs.',color:'#d7bd78',emoji:'✳️',tag:'MADE TO SPEC'}];
-export default function Home(){return <><Header/><main><section className="bg-[#111611] text-white overflow-hidden"><div className="container grid md:grid-cols-[1.02fr_.98fr] gap-10 items-center py-16 md:py-24"><div className="relative z-10"><div className="eyebrow !text-[#63d59a] mb-5">INGREDIENTS THAT MOVE INDUSTRY</div><h1 className="text-5xl md:text-7xl font-black tracking-[-.055em] leading-[.99]">Good food<br/>starts with<br/><span className="text-[#19b96a]">good ingredients.</span></h1><p className="text-gray-300 text-base md:text-lg leading-7 max-w-lg mt-7">Dehydrated spice ingredients for ambitious food brands, manufacturers, distributors and kitchens.</p><div className="flex flex-wrap gap-3 mt-8"><Link href="/retail/#products" className="btn">Explore products <span>↓</span></Link><Link href="/business" className="btn btn-outline !text-white !border-white/30">I'm a business buyer ↗</Link></div><div className="flex flex-wrap gap-x-7 gap-y-3 mt-12 text-xs text-gray-300"><span>✓ Domestic & export enquiries</span><span>✓ Retail and bulk supply</span><span>✓ Quality-first approach</span></div></div><div className="relative min-h-[340px] md:min-h-[480px] flex items-center justify-center"><div className="absolute w-[320px] h-[320px] md:w-[450px] md:h-[450px] rounded-full border border-[#1bb66b]/35"/><div className="absolute w-[260px] h-[260px] md:w-[370px] md:h-[370px] rounded-full bg-[#183b27] blur-2xl opacity-80"/><div className="relative grid grid-cols-2 gap-3 rotate-[-5deg]"><div className="rounded-full w-36 h-36 md:w-48 md:h-48 bg-[#e2c76c] flex items-center justify-center text-7xl md:text-8xl shadow-2xl">🧅</div><div className="rounded-full w-32 h-32 md:w-40 md:h-40 mt-10 bg-[#e9dfc5] flex items-center justify-center text-6xl md:text-7xl shadow-2xl">🧄</div><div className="rounded-full w-28 h-28 md:w-36 md:h-36 ml-8 bg-[#b84c2e] flex items-center justify-center text-6xl shadow-2xl">🌶️</div><div className="rounded-full w-36 h-36 md:w-44 md:h-44 bg-[#c4a14d] flex items-center justify-center text-7xl shadow-2xl">✳️</div></div><div className="absolute bottom-3 right-0 bg-white text-gray-900 p-4 rounded-lg shadow-xl"><div className="text-[9px] tracking-widest text-gray-500">VIHAAR INDUSTRIES</div><div className="font-bold text-sm mt-1">Ingredients. Elevated.</div></div></div></div></section><section className="border-b border-gray-200 bg-white"><div className="container grid grid-cols-2 md:grid-cols-4 gap-6 py-6 text-sm"><div><div className="font-bold">Retail + Bulk</div><div className="muted text-xs mt-1">Flexible buying journeys</div></div><div><div className="font-bold">Built for B2B</div><div className="muted text-xs mt-1">Quote and supply workflows</div></div><div><div className="font-bold">Domestic + Export</div><div className="muted text-xs mt-1">Enquiries for global markets</div></div><div><div className="font-bold">Quality-led</div><div className="muted text-xs mt-1">Documentation and traceability</div></div></div></section><section id="products" className="section"><div className="container"><div className="flex flex-wrap justify-between items-end gap-5 mb-9"><div><div className="eyebrow mb-3">THE PRODUCT RANGE</div><h2 className="text-3xl md:text-4xl font-black tracking-tight">Ingredients with purpose.</h2><p className="muted mt-3 max-w-xl">Explore core ingredients or speak with us about specifications, pack sizes and bulk requirements.</p></div><Link className="btn btn-outline" href="/enquiry">Request a product list ↗</Link></div><div className="grid md:grid-cols-3 gap-5">{products.map(p=><article className="product-card" key={p.name}><div className="product-art"><span className="absolute top-4 left-4 text-[9px] font-bold tracking-widest bg-white/90 rounded-full px-3 py-2">{p.tag}</span><div className="spice-dot" style={{background:p.color}}>{p.emoji}</div></div><div className="p-5"><div className="eyebrow !text-[9px]">{p.type}</div><h3 className="text-xl font-black mt-2">{p.name}</h3><p className="muted text-sm mt-2">{p.desc}</p><div className="flex gap-2 mt-5"><Link href="/enquiry" className="btn flex-1">Enquire now ↗</Link><Link href="/business" className="btn btn-outline">Bulk</Link></div></div></article>)}</div><p className="text-xs muted mt-4">Product illustrations are placeholders for the design preview. Replace them with approved product photography and verified specifications before launch.</p></div></section><section id="capabilities" className="bg-[#e9eee7] section"><div className="container grid md:grid-cols-2 gap-12 items-center"><div><div className="eyebrow mb-3">MADE FOR HOW YOU BUY</div><h2 className="text-3xl md:text-4xl font-black tracking-tight">One ingredient partner.<br/>Two ways to work.</h2><p className="muted mt-5 leading-7">Whether you're shopping for your kitchen or sourcing ingredients for a production line, the buying journey should fit your business.</p><div className="mt-7 space-y-4"><div className="bg-white p-5 rounded-lg"><div className="font-bold">For customers</div><p className="muted text-sm mt-2">Browse available packs, build a cart and check out when online payments and delivery are enabled.</p></div><div className="bg-white p-5 rounded-lg"><div className="font-bold">For businesses</div><p className="muted text-sm mt-2">Request bulk pricing, share specifications, ask for a sample or request an export quotation.</p></div></div><Link href="/business" className="btn mt-6">Explore business purchasing ↗</Link></div><div className="bg-[#151915] text-white rounded-xl p-8 md:p-10"><div className="eyebrow !text-[#62d99b]">A BETTER BUYING PROCESS</div><div className="mt-8 space-y-7">{[['01','Tell us what you need','Product, grade, packaging, quantity and destination.'],['02','Align on specifications','Confirm availability, pricing, logistics and documentation.'],['03','Move from quote to order','Track agreed terms and keep the paperwork together.']].map(x=><div className="flex gap-4" key={x[0]}><div className="text-[#25c878] font-black text-xl">{x[0]}</div><div><div className="font-bold">{x[1]}</div><p className="text-sm text-gray-400 mt-1">{x[2]}</p></div></div>)}</div></div></div></section><section id="quality" className="section bg-white"><div className="container text-center"><div className="eyebrow mb-3">QUALITY & TRUST</div><h2 className="text-3xl md:text-4xl font-black">Proof belongs in the open.</h2><p className="muted max-w-2xl mx-auto mt-4 leading-7">A dedicated place for verified licences, certifications, quality documents, customer feedback and company milestones.</p><div className="grid sm:grid-cols-3 gap-4 mt-9 text-left">{[['Certifications','FSSAI, GST and other applicable documents.'],['Quality documentation','Product specifications and supporting documents.'],['Customer stories','Approved testimonials and business milestones.']].map(x=><div className="border border-gray-200 rounded-lg p-5" key={x[0]}><div className="w-10 h-10 rounded-full bg-[#e3f4e9] text-[#008b47] flex items-center justify-center font-black">✓</div><h3 className="font-bold mt-4">{x[0]}</h3><p className="muted text-sm mt-2">{x[1]}</p></div>)}</div><p className="text-xs muted mt-5">Only verified, current certificates and approved testimonials should be published. Admin-managed sections will support visibility controls.</p></div></section><section className="bg-[#00994d] text-white py-14"><div className="container flex flex-col md:flex-row items-start md:items-center justify-between gap-6"><div><div className="text-xs tracking-[.2em] font-bold text-white/75">LET'S TALK INGREDIENTS</div><h2 className="text-3xl md:text-4xl font-black mt-3">Have a specification in mind?</h2><p className="text-white/85 mt-2">Tell us your product, volume and destination.</p></div><Link href="/enquiry" className="btn !bg-white !text-[#006b38] !border-white">Start an enquiry ↗</Link></div></section></main><footer className="bg-[#111611] text-gray-300 py-9"><div className="container flex flex-col sm:flex-row justify-between gap-5"><div><div className="text-white font-black text-lg">Vihaar Industries</div><p className="text-xs mt-2 text-gray-400">Dehydrated ingredients for food makers and kitchens.</p></div><div className="flex flex-wrap gap-5 text-xs"><Link href="/enquiry">Contact</Link><Link href="/business">Business buyers</Link><Link href="/account">Account</Link></div></div><div className="container border-t border-white/10 mt-7 pt-5 text-[10px] text-gray-500">© {new Date().getFullYear()} Vihaar Industries. Replace this footer with verified legal entity and contact details before launch.</div></footer></>}
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const staffRoles = ['owner', 'admin', 'finance', 'operations', 'content_manager'];
+
+const sections = [
+  { title: 'Products', description: 'Product catalogue and published status.', href: '/control-room/products' },
+  { title: 'Orders', description: 'Retail, business and export orders.', href: '/control-room/orders' },
+  { title: 'Inventory', description: 'Stock batches, quantities and expiry dates.', href: '/control-room/inventory' },
+  { title: 'Enquiries', description: 'Customer, bulk purchasing and export enquiries.', href: '/control-room/enquiries' },
+  { title: 'Coupons & referrals', description: 'Manage promotions and referral offers.', href: '/control-room/promotions' },
+  { title: 'Website content', description: 'Manage visibility of website sections.', href: '/control-room/content' },
+  { title: 'Finance', description: 'Accounting records and journal entries.', href: '/control-room/finance', roles: ['owner', 'admin', 'finance'] },
+  { title: 'Team & access', description: 'Staff accounts and application roles.', href: '/control-room/team', roles: ['owner', 'admin'] },
+];
+
+export default async function ControlRoomHome() {
+  const supabase = await createClient();
+
+  if (!supabase) {
+    return (
+      <main className="min-h-screen p-8">
+        <h1 className="text-2xl font-black">Admin setup required</h1>
+        <p className="mt-2">Configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel, then redeploy.</p>
+      </main>
+    );
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/auth/sign-in?next=/control-room');
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('role, full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error || !profile || !staffRoles.includes(profile.role)) {
+    redirect('/');
+  }
+
+  const visibleSections = sections.filter(
+    (section) => !section.roles || section.roles.includes(profile.role)
+  );
+
+  return (
+    <main className="admin-shell min-h-screen">
+      <div className="grid min-h-screen md:grid-cols-[240px_1fr]">
+        <aside className="admin-sidebar p-5">
+          <Link href="/" className="text-xl font-black">
+            Vihaar<span className="text-[#25c878]">.</span>
+          </Link>
+          <p className="mt-1 text-xs text-gray-400">CONTROL ROOM</p>
+          <nav className="mt-8 space-y-1">
+            <Link href="/control-room" className="admin-nav">Overview</Link>
+            {visibleSections.map((section) => (
+              <Link key={section.href} href={section.href} className="admin-nav">
+                {section.title}
+              </Link>
+            ))}
+          </nav>
+          <p className="mt-10 text-[10px] text-gray-500">
+            Signed in as {profile.full_name || user.email}
+          </p>
+        </aside>
+
+        <section className="min-w-0 p-5 md:p-10">
+          <div className="text-xs font-bold uppercase tracking-widest text-vihaar-green">
+            Vihaar Industries · Administration
+          </div>
+          <h1 className="mt-2 text-3xl font-black">Control room</h1>
+          <p className="muted mt-2">
+            Manage your catalogue, customer enquiries, orders and website operations.
+          </p>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {visibleSections.map((section) => (
+              <Link
+                key={section.href}
+                href={section.href}
+                className="block rounded-xl border border-gray-200 bg-white p-5 transition hover:border-green-500 hover:shadow-sm"
+              >
+                <h2 className="font-bold">{section.title}</h2>
+                <p className="muted mt-2 text-sm leading-6">{section.description}</p>
+                <span className="mt-5 inline-block text-sm font-semibold text-vihaar-green">
+                  Open section →
+                </span>
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <strong>Access control is enabled.</strong>
+            <p className="mt-1">
+              Only profiles with an owner, admin, finance, operations or content_manager
+              role can open the control room. Give staff roles only to trusted accounts.
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
