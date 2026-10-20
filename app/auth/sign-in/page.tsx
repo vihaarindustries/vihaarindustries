@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
+import { safeNext } from '@/lib/safe-redirect';
 
 function SignInContent() {
   const params = useSearchParams();
@@ -29,12 +30,13 @@ function SignInContent() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setMessage(error.message);
+      // one message for every failure, so the form never reveals which emails have accounts
+      setMessage('Incorrect email or password.');
       setBusy(false);
       return;
     }
 
-    window.location.href = params.get('next') || '/account';
+    window.location.href = safeNext(params.get('next'));
   }
 
   return (
@@ -46,6 +48,12 @@ function SignInContent() {
       <p className="muted mt-2">
         Access your customer account or authorised admin workspace.
       </p>
+
+      {(params.get('idle') || params.get('expired') || params.get('signed_out')) && (
+        <p role="status" className="mt-4 text-sm bg-[#e3f4e9] text-[#006b38] rounded-lg px-4 py-3">
+          {params.get('idle') ? 'You were signed out after a period of inactivity.' : params.get('expired') ? 'Your session ended. Please sign in again.' : 'You have been signed out.'}
+        </p>
+      )}
 
       <form
         onSubmit={submit}
