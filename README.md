@@ -1,3 +1,4 @@
+[Uploading README.md…]()
 # Vihaar Industries
 
 A Next.js + TypeScript + Tailwind + Supabase foundation for Vihaar Industries' B2B/B2C spice business.
@@ -21,3 +22,8 @@ cp .env.example .env.local
 npm run dev
 ```
 Read `docs/DEPLOYMENT.md` before deployment. No credentials or real customer data are included.
+
+
+## Control room
+
+Admin panel at `/control-room` (hidden behind `ADMIN_GATE_KEY`). See `docs/ADMIN_GUIDE.md` for every section and `docs/DEPLOYMENT.md` for setup, migrations and security notes. Third-party services (payments, shipping, email, WhatsApp, GST, FX, Gemini) are wired as placeholders in `lib/integrations/` and listed on the control room's Integrations page.
