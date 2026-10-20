@@ -1,0 +1,23 @@
+import 'server-only';
+
+/**
+ * Every outside service the site can use, in one place. Nothing here is switched on until its
+ * environment variables are present. The control room's Integrations page reads this list and shows
+ * only "connected / not connected" (never the secret values).
+ */
+export type Integration = { key: string; name: string; purpose: string; env: string[]; docs?: string; status?: 'live' | 'placeholder' };
+
+export const INTEGRATIONS: Integration[] = [
+  { key: 'gemini', name: 'Google Gemini (AI chatbot)', purpose: 'Answers visitor questions on the website chat.', env: ['GEMINI_API_KEY', 'GEMINI_MODEL'], docs: 'https://ai.google.dev/gemini-api/docs', status: 'live' },
+  { key: 'supabase_service', name: 'Supabase service role', purpose: 'Staff invitations, visit tracking, coupon preview and order lookup (server only).', env: ['SUPABASE_SERVICE_ROLE_KEY'], status: 'live' },
+  { key: 'email', name: 'Email (Resend / Brevo / SES)', purpose: 'Notify your team of new enquiries and send order updates.', env: ['EMAIL_PROVIDER_API_KEY', 'EMAIL_FROM', 'ENQUIRY_NOTIFY_TO'], status: 'placeholder' },
+  { key: 'payments', name: 'Payment gateway (Razorpay / Stripe)', purpose: 'Online card and UPI payments at checkout.', env: ['PAYMENT_KEY_ID', 'PAYMENT_KEY_SECRET', 'PAYMENT_WEBHOOK_SECRET'], status: 'placeholder' },
+  { key: 'shipping', name: 'Shipping (Shiprocket / Delhivery)', purpose: 'Create shipments, print labels and fetch live tracking.', env: ['SHIPPING_API_KEY', 'SHIPPING_API_SECRET'], status: 'placeholder' },
+  { key: 'whatsapp', name: 'WhatsApp Business / SMS', purpose: 'Send order and shipment updates to customers.', env: ['MESSAGING_API_KEY', 'MESSAGING_SENDER_ID'], status: 'placeholder' },
+  { key: 'gst', name: 'GST e-invoicing / e-way bill', purpose: 'Generate IRN and e-way bills for taxable shipments.', env: ['GST_API_USER', 'GST_API_PASSWORD', 'GST_GSTIN'], status: 'placeholder' },
+  { key: 'fx', name: 'Currency rates', purpose: 'Convert export invoices (USD, AED ...) into rupees for the books.', env: ['FX_API_KEY'], status: 'placeholder' },
+  { key: 'ratelimit', name: 'Upstash Redis (rate limiting)', purpose: 'Shared rate limits across all server instances.', env: ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'], status: 'placeholder' },
+  { key: 'analytics', name: 'Search Console / Analytics (optional)', purpose: 'Search performance and ads attribution alongside built-in traffic stats.', env: ['NEXT_PUBLIC_ANALYTICS_ID'], status: 'placeholder' },
+];
+
+export const integrationStatus = () => INTEGRATIONS.map((i) => ({ ...i, connected: i.env.every((e) => e === 'GEMINI_MODEL' || !!process.env[e]) }));
