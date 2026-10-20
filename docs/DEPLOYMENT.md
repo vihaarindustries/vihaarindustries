@@ -1,3 +1,4 @@
+[DEPLOYMENT.md](https://github.com/user-attachments/files/33708029/DEPLOYMENT.md)
 # Vihaar Industries — deployment guide
 
 ## 1. Prerequisites
@@ -53,3 +54,20 @@ This repository is a substantial starter implementation, not a production-certif
 
 ## 8. Accounting notes
 Amounts are stored as integer minor units (for INR, paise) to avoid floating-point rounding. The chart of accounts is a starting template and must be adapted by an accountant. GST tax rates, tax codes, exports, FX and inventory cost accounting need reviewed configuration. Use reversal journals rather than editing posted entries.
+
+
+## Control room setup (new)
+
+1. **Run the migrations in order** in the Supabase SQL editor: `001` … `009` (files in `supabase/migrations`). Run each once.
+2. **Create the first owner.** Supabase → Authentication → Add user (email + password). Then in the SQL editor:
+   `update public.profiles set role = 'owner' where email = 'you@yourcompany.com';`
+3. **Set environment variables** (see `.env.example`): `ADMIN_GATE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and later `GEMINI_API_KEY`. The service-role key is server-only. Never expose it.
+4. **First sign-in:** open `/control-room?key=YOUR_KEY`, sign in, scan the QR code with an authenticator app. The database refuses all staff data until that code is verified.
+5. **Supabase Auth settings:** set Site URL and redirect URLs to your domain, turn on email confirmation, enable MFA (TOTP), and set a strong password policy.
+6. **Before launch:** add certificates, products and photos; set coupons and referral rules; switch the chatbot on once `GEMINI_API_KEY` is set.
+
+### Locked out of MFA?
+In the SQL editor: `update public.security_settings set value = 'false' where key = 'require_staff_mfa';` — sign in, re-enrol, then set it back to `'true'`.
+
+### Security model in one paragraph
+Every table has Row Level Security; staff access is per role and requires MFA at the database level, so even a leaked password or stolen token cannot read data through the public API. All writes to orders, stock, money and settings go through audited database functions. Coupon codes, customer data and chatbot facts are private. The audit log is append-only. The control room path is hidden behind a secret entry link, responses are never cached, security headers/CSP are set, public forms are rate-limited and origin-checked, and idle sessions sign out.
