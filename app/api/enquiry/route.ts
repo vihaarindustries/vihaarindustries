@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { clientIp, rateLimit } from '@/lib/rate-limit';
+import { sameOrigin } from '@/lib/admin/http';
+import { notifyNewEnquiry } from '@/lib/integrations/email';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const text = (v: FormDataEntryValue | null, max: number) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return NextResponse.json({ error: 'Request blocked.' }, { status: 403 });
+  if (!rateLimit(`enq:${clientIp(request)}`, 5, 10 * 60_000).ok) return NextResponse.json({ error: 'Too many enquiries from this connection. Please try again later.' }, { status: 429 });
   const form = await request.formData();
+  // Hidden honeypot field: real visitors leave it empty, simple bots fill it. Pretend success so bots learn nothing.
+  if (text(form.get('website'), 100)) return NextResponse.redirect(new URL('/enquiry?submitted=1', request.url), 303);
   const name = text(form.get('name'), 120);
   const email = text(form.get('email'), 254).toLowerCase();
   const company = text(form.get('company'), 180);
@@ -29,5 +36,6 @@ export async function POST(request: Request) {
     // Do not leak database details to anonymous visitors.
     return NextResponse.json({ error: 'We could not submit your enquiry right now. Please try again later.' }, { status: 500 });
   }
+  await notifyNewEnquiry({ name, email, company, type, details });
   return NextResponse.redirect(new URL('/enquiry?submitted=1', request.url), 303);
 }
