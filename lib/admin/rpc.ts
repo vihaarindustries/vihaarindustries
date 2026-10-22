@@ -36,6 +36,7 @@ export const RPC: Record<string, RpcDef> = {
   reject_referral: { roles: FIN, mutating: true, params: { p_referral: uuid } },
   create_purchase: { roles: OPS, mutating: true, params: {
     p_supplier: uuid, p_location: ouuid, p_expected: odate, p_invoice: text(60), p_shipping_minor: minor(true), p_notes: text(2000),
+    p_invoice_date: odate, p_source_file_name: text(255), p_source_file_sha256: { t: 'str', optional: true, pattern: /^[a-f0-9]{64}$/ },
     p_items: { t: 'arr', min: 1, max: 100, of: { t: 'shape', fields: {
       product_id: uuid, quantity: { t: 'num', min: 0.001, max: 1e7 }, unit_cost_minor: minor(), tax_rate: { t: 'num', min: 0, max: 100, optional: true },
       batch_number: text(60), manufactured_on: odate, expires_on: odate } } } } },
