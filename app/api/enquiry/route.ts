@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   const details = text(form.get('details'), 5000);
   const quantity = text(form.get('quantity'), 120);
   const destination = text(form.get('destination'), 100);
+  const productSlug = text(form.get('product_slug'), 80);
 
   if (!name || !emailPattern.test(email) || !details) {
     return NextResponse.json({ error: 'Please provide a name, valid email address and enquiry details.' }, { status: 400 });
@@ -27,9 +28,15 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   if (!supabase) return NextResponse.json({ error: 'Enquiry service is not configured yet.' }, { status: 503 });
   const { data: { user } } = await supabase.auth.getUser();
+  // "Request quote" on a product card sends the product's address; link the enquiry to that product when it exists.
+  let productId: string | null = null; let productName = '';
+  if (/^[a-z0-9-]{1,80}$/.test(productSlug)) {
+    const { data: prod } = await supabase.from('products').select('id, name').eq('slug', productSlug).eq('is_active', true).maybeSingle();
+    if (prod) { productId = prod.id; productName = prod.name; }
+  }
   const { error } = await supabase.from('enquiries').insert({
     user_id: user?.id ?? null, name, email, company: company || null,
-    enquiry_type: type, details, quantity_text: quantity || null,
+    enquiry_type: type, product_id: productId, details: productName ? `Product: ${productName}\n${details}` : details, quantity_text: quantity || null,
     destination_country: destination || null
   });
   if (error) {
