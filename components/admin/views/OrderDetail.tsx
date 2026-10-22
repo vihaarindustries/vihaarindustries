@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Alert, Badge, Btn, Card, Input, Label, Modal, Select, Spinner, Table, Td, Textarea, Th, useFlash } from '../ui';
 import { useRole } from '../role';
@@ -101,13 +101,64 @@ function PayModal({ order, outstanding, onClose, onDone }: { order: Order; outst
       <Label help="UTR number, cheque number or receipt id">Reference<Input maxLength={80} value={ref} onChange={(e) => setRef(e.target.value)} /></Label></div></Modal>;
 }
 
+/** Your own state. Deliveries inside it are "within state"; other Indian addresses are "rest of India"; anything outside India is "export". */
+const HOME_STATE = 'Gujarat';
+type Courier = { id: string; name: string; serves_state: boolean; serves_national: boolean; serves_export: boolean; tracking_url_template: string | null; is_active: boolean };
+type Zone = 'state' | 'national' | 'export';
+const ZONE_LABEL: Record<Zone, string> = { state: `Within ${HOME_STATE}`, national: 'Rest of India', export: 'Export (outside India)' };
+const OTHER = '__other__';
+
+function detectZone(o: Order): Zone {
+  const country = (o.shipping_address?.country ?? '').trim().toLowerCase();
+  if (o.order_type === 'export' || (country && country !== 'india' && country !== 'in')) return 'export';
+  return (o.shipping_address?.state ?? '').trim().toLowerCase() === HOME_STATE.toLowerCase() ? 'state' : 'national';
+}
+const buildLink = (tpl: string | null | undefined, num: string) => (tpl && num.trim() ? tpl.replace('{tracking}', encodeURIComponent(num.trim())) : '');
+
 function TrackingCard({ o, onSaved, onError }: { o: Order; onSaved: () => void; onError: (m: string) => void }) {
-  const [f, setF] = useState({ courier_provider: o.courier_provider ?? '', courier_reference: o.courier_reference ?? '', tracking_url: o.tracking_url ?? '', expected_delivery: o.expected_delivery ?? '', internal_notes: o.internal_notes ?? '' }); const [busy, setBusy] = useState(false);
+  const [couriers, setCouriers] = useState<Courier[]>([]);
+  useEffect(() => { api<Courier[]>('/api/admin/r/couriers?size=100').then((r) => setCouriers(r.filter((c) => c.is_active))).catch(() => {}); }, []);
+  const zone = useMemo(() => detectZone(o), [o]);
+  const [f, setF] = useState({ courier_provider: o.courier_provider ?? '', courier_reference: o.courier_reference ?? '', tracking_url: o.tracking_url ?? '', expected_delivery: o.expected_delivery ?? '', internal_notes: o.internal_notes ?? '' });
+  const [busy, setBusy] = useState(false); const [showAll, setShowAll] = useState(false);
+  const [linkEdited, setLinkEdited] = useState(!!o.tracking_url);   // once someone types the link by hand, we stop overwriting it
+  const [other, setOther] = useState(false);
+
+  const serves = (c: Courier) => (zone === 'state' ? c.serves_state : zone === 'national' ? c.serves_national : c.serves_export);
+  const suggested = couriers.filter(serves); const rest = couriers.filter((c) => !serves(c));
+  const chosen = couriers.find((c) => c.name === f.courier_provider);
+  const isOther = other || (!!f.courier_provider && !chosen);
+  const selectValue = isOther ? OTHER : f.courier_provider;
+
+  function setCourier(name: string) {
+    if (name === OTHER) { setOther(true); setF({ ...f, courier_provider: '' }); return; }
+    setOther(false);
+    const c = couriers.find((x) => x.name === name); const link = buildLink(c?.tracking_url_template, f.courier_reference);
+    setF({ ...f, courier_provider: name, ...(!linkEdited || !f.tracking_url ? { tracking_url: link } : {}) });
+  }
+  function setNumber(v: string) {
+    const link = buildLink(chosen?.tracking_url_template, v);
+    setF({ ...f, courier_reference: v, ...(!linkEdited && chosen?.tracking_url_template ? { tracking_url: link } : {}) });
+  }
   async function save() { setBusy(true); try { await rpc('update_order_details', { p_order: o.id, p_patch: Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v || null])) }); onSaved(); } catch (e) { onError(errMsg(e)); } finally { setBusy(false); } }
+  const noTemplate = !!chosen && !chosen.tracking_url_template;
+
   return <Card title="Courier & internal notes"><div className="space-y-3">
-    <Label>Courier / transporter<Input maxLength={60} value={f.courier_provider} onChange={(e) => setF({ ...f, courier_provider: e.target.value })} /></Label>
-    <Label>Tracking / LR number<Input maxLength={80} value={f.courier_reference} onChange={(e) => setF({ ...f, courier_reference: e.target.value })} /></Label>
-    <Label>Tracking link<Input type="url" placeholder="https://" value={f.tracking_url} onChange={(e) => setF({ ...f, tracking_url: e.target.value })} /></Label>
+    <div className="text-xs"><span className="muted">Delivery zone: </span><Badge tone={zone === 'export' ? 'green' : zone === 'state' ? 'gray' : 'blue'}>{ZONE_LABEL[zone]}</Badge></div>
+    <Label>Courier / transporter
+      <Select value={selectValue} onChange={(e) => setCourier(e.target.value)}>
+        <option value="">Choose…</option>
+        {suggested.length > 0 && <optgroup label={`Handles ${ZONE_LABEL[zone].toLowerCase()}`}>{suggested.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+        {(showAll || (suggested.length === 0 && rest.length > 0)) && rest.length > 0 && <optgroup label="Other couriers">{rest.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+        <option value={OTHER}>Other (type the name)…</option>
+      </Select></Label>
+    {!showAll && suggested.length > 0 && rest.length > 0 && <button type="button" className="text-xs underline" onClick={() => setShowAll(true)}>Show couriers for other zones</button>}
+    {couriers.length === 0 && <p className="text-xs muted">No couriers saved yet. Add them under <Link href="/control-room/couriers" className="underline">Couriers</Link>, or type a name below.</p>}
+    {isOther && <Label>Courier name<Input maxLength={60} value={f.courier_provider} onChange={(e) => setF({ ...f, courier_provider: e.target.value })} /></Label>}
+    <Label>Tracking / LR number<Input maxLength={80} value={f.courier_reference} onChange={(e) => setNumber(e.target.value)} /></Label>
+    <Label help={noTemplate ? 'No link format is saved for this courier. Paste its tracking link here, or save the format once under Couriers.' : chosen ? 'Filled in automatically from the tracking number. You can still edit it.' : undefined}>Tracking link
+      <Input type="url" placeholder="https://" value={f.tracking_url} onChange={(e) => { setLinkEdited(true); setF({ ...f, tracking_url: e.target.value }); }} /></Label>
+    {f.tracking_url && /^https:\/\//.test(f.tracking_url) && <a href={f.tracking_url} target="_blank" rel="noopener noreferrer" className="text-xs underline">Test the link ↗</a>}
     <Label>Expected delivery<Input type="date" value={f.expected_delivery} onChange={(e) => setF({ ...f, expected_delivery: e.target.value })} /></Label>
     <Label help="Never shown to the customer">Internal notes<Textarea rows={3} maxLength={4000} value={f.internal_notes} onChange={(e) => setF({ ...f, internal_notes: e.target.value })} /></Label>
     <Btn size="sm" busy={busy} onClick={save}>Save</Btn></div></Card>;
