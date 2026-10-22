@@ -4,11 +4,13 @@ try { supabaseOrigin = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').origi
 
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProd ? '' : " 'unsafe-eval'"}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net${isProd ? '' : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: https://*.supabase.co ${supabaseOrigin}`.trim(),
+  `img-src 'self' data: blob: https://*.supabase.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net ${supabaseOrigin}`.trim(),
   "font-src 'self' data:",
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${supabaseOrigin}`.trim(),
+  `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net ${supabaseOrigin}`.trim(),
+  "worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+  "frame-src 'self' blob:",
   "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'",
   ...(isProd ? ['upgrade-insecure-requests'] : []),
 ].join('; ');
