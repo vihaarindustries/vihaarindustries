@@ -280,12 +280,12 @@ export const RESOURCES: Record<string, ResourceDef> = {
 
   purchase_orders: {
     key: 'purchase_orders', label: 'Purchase orders', singular: 'purchase', table: 'purchase_orders', select: '*, suppliers(name)', orderBy: { column: 'created_at' },
-    read: OPS_FIN, write: [], remove: [], creatable: false, search: ['po_number', 'invoice_number'],
+    read: OPS_FIN, write: [], remove: [], creatable: false, search: ['po_number', 'invoice_number', 'source_file_name'],
     filters: [{ column: 'status', label: 'Status', options: opts('ordered', 'received', 'cancelled') }],
     emptyText: 'No purchases yet. Record what you buy from suppliers to update stock.', fields: [],
     columns: [
-      { key: 'po_number', label: 'PO' }, { key: 'suppliers.name', label: 'Supplier' }, { key: 'status', label: 'Status', type: 'badge', badges: { ordered: 'amber', received: 'green', cancelled: 'red', draft: 'gray' } },
-      { key: 'total_minor', label: 'Total', type: 'money' }, { key: 'payment_status', label: 'Payment', type: 'badge', badges: { unpaid: 'red', partial: 'amber', paid: 'green' } }, { key: 'order_date', label: 'Ordered', type: 'date' },
+      { key: 'po_number', label: 'PO' }, { key: 'suppliers.name', label: 'Supplier' }, { key: 'source_file_name', label: 'Imported file' }, { key: 'status', label: 'Status', type: 'badge', badges: { ordered: 'amber', received: 'green', cancelled: 'red', draft: 'gray' } },
+      { key: 'supplier_invoice_date', label: 'Invoice date', type: 'date' }, { key: 'total_minor', label: 'Total', type: 'money' }, { key: 'payment_status', label: 'Payment', type: 'badge', badges: { unpaid: 'red', partial: 'amber', paid: 'green' } }, { key: 'order_date', label: 'Ordered', type: 'date' },
     ],
   },
 
