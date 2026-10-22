@@ -29,6 +29,7 @@ export const NAV: NavItem[] = [
   { key: 'products', label: 'Products', href: '/control-room/products', group: 'Catalogue', roles: ['owner', 'admin', 'content_manager', 'operations'] },
   { key: 'showcase', label: 'Certificates & achievements', href: '/control-room/showcase', group: 'Catalogue', roles: ['owner', 'admin', 'content_manager'] },
   { key: 'content', label: 'Website sections', href: '/control-room/content', group: 'Catalogue', roles: ['owner', 'admin', 'content_manager'] },
+  { key: 'business', label: 'Business information', href: '/control-room/business', group: 'Settings', roles: ['owner', 'admin', 'content_manager'] },
   { key: 'navigation', label: 'Navigation menu', href: '/control-room/navigation', group: 'Catalogue', roles: ['owner', 'admin', 'content_manager'] },
 
   { key: 'orders', label: 'Orders', href: '/control-room/orders', group: 'Sales', roles: ['owner', 'admin', 'operations', 'finance'], badge: 'orders' },
