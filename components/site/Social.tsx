@@ -1,7 +1,7 @@
-import { Facebook, Globe, Instagram, Linkedin, MessageCircle, Pin, Send, Twitter, Youtube } from 'lucide-react';
+import { Facebook, Globe, Instagram, Linkedin, MessageCircle, Pin, Send, Twitter, Youtube, type LucideIcon } from 'lucide-react';
 import type { LinkItem } from '@/lib/business';
 
-const ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+const ICONS: Record<string, LucideIcon> = {
   whatsapp: MessageCircle, instagram: Instagram, facebook: Facebook, linkedin: Linkedin, youtube: Youtube, x: Twitter, telegram: Send, pinterest: Pin,
 };
 /** Round icon buttons. Only the profiles that have a link are passed in, so nothing empty ever shows. */
