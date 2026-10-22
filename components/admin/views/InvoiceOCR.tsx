@@ -68,50 +68,62 @@ async function sha256(blob: Blob): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 function parseInvoice(text: string) {
-  const clean = text.replace(/[\u00a0\u2007\u202f]/g, ' ').replace(/\r/g, '');
-  const no = clean.match(/(?:invoice\s*(?:no\.?|number|#)|bill\s*(?:no\.?|number|#)|tax\s*invoice\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/]{1,39})/i)?.[1] ?? '';
-  const rawDate = clean.match(/(?:invoice\s*date|bill\s*date|dated|date)\s*[:#-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}-\d{2}-\d{2})/i)?.[1] ?? '';
-  let invoiceDate = '';
-  if (rawDate) {
-    const iso = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (iso) invoiceDate = rawDate;
-    else {
-      const m = rawDate.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
-      if (m) {
-        const year = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]);
-        // Indian supplier bills normally use DD/MM/YYYY. This is only a suggestion; verify it.
-        const d = new Date(year, Number(m[2]) - 1, Number(m[1]));
-        if (d.getFullYear() === year && d.getMonth() === Number(m[2]) - 1 && d.getDate() === Number(m[1])) invoiceDate = `${year}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-      }
+  const clean = text.replace(/[\u00a0\u2007\u202f]/g, ' ').replace(/\r/g, ' ');
+  const lines = clean.split(/\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const all = lines.join('\n');
+  // Invoice identifiers may appear on the line after their heading in OCR output.
+  let invoiceNo = '';
+  const directNo = all.match(/(?:invoice\s*(?:no\.?|number|#)|bill\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/]{1,39})/i);
+  if (directNo && !/^(?:dated|date|mode|terms|payment|delivery|invoice|bill)$/i.test(directNo[1])) invoiceNo = directNo[1];
+  if (!invoiceNo) {
+    const heading = lines.findIndex(x => /invoice\s*no\.?|bill\s*no\.?/i.test(x));
+    for (const candidate of lines.slice(Math.max(0, heading), Math.max(0, heading) + 4)) {
+      const m = candidate.match(/\b([A-Z]{1,5}[-/]?\d{1,12}(?:[-/]\d{1,8})?)\b/i);
+      if (m && !/^(?:NO|GST|HSN|SAC)$/i.test(m[1])) { invoiceNo = m[1]; break; }
     }
   }
-  const totalPatterns = [
-    /(?:grand\s*total|invoice\s*total|net\s*payable|amount\s*payable|total\s*amount|total\s*due|total\s*incl(?:usive)?\s*(?:of\s*)?tax|balance\s*due)\s*(?:inr|rs\.?|₹)?\s*[:=-]?\s*([0-9][0-9,]*(?:\.\d{1,2})?)/i,
-    /(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:only)?\s*$/im,
+  let rawDate = '';
+  const datePatterns = [
+    /(?:invoice\s*date|bill\s*date|dated|date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|\d{1,2}[- ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[- ,]?\d{2,4}|\d{4}-\d{2}-\d{2})/i,
+    /\b(\d{1,2}[- ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[- ,]?\d{2,4})\b/i,
   ];
+  for (const re of datePatterns) { const m = all.match(re); if (m) { rawDate = m[1].replace(/\s+/g, '-'); break; } }
+  let invoiceDate = '';
+  if (rawDate) {
+    let m = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) invoiceDate = `${m[1]}-${m[2]}-${m[3]}`;
+    else if ((m = rawDate.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/))) {
+      const d = +m[1], mo = +m[2], yr = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+      if (d <= 31 && mo <= 12) invoiceDate = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    } else if ((m = rawDate.match(/^(\d{1,2})-(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*-?(\d{2,4})$/i))) {
+      const months: Record<string,string> = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',sept:'09',oct:'10',nov:'11',dec:'12'};
+      const yr = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+      invoiceDate = `${yr}-${months[m[2].toLowerCase()]}-${m[1].padStart(2,'0')}`;
+    }
+  }
+  // Prefer a labeled total, but allow the total line to put the value before/after its label.
   let invoiceTotal = '';
-  for (const re of totalPatterns) { const m = clean.match(re); if (m) { invoiceTotal = m[1].replace(/,/g, ''); break; } }
-  const lines = clean.split(/\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const excludedSupplierLine = /(tax\s*invoice|invoice\s*(?:no|date|number)|gstin|gst\s*no|phone|mobile|email|bill\s*to|ship\s*to|original\s*for|duplicate\s*copy|cash\s*memo|www\.|@)/i;
-  const supplierName = lines.slice(0, 18).find(x => x.length >= 3 && x.length <= 120 && !excludedSupplierLine.test(x) && !/^\d/.test(x) && !/^(?:state|place|date|page|customer|buyer|consignee|details)\b/i.test(x)) ?? '';
+  const totalMatch = all.match(/(?:grand\s*total|invoice\s*total|net\s*payable|amount\s*payable|total\s*amount|total\s*due|total)\s*[:=| -]*\s*(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)/i)
+    || all.match(/(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.\d{1,2})?)/i);
+  if (totalMatch) invoiceTotal = totalMatch[1].replace(/,/g, '');
+  // For Tally-style Indian bills, the issuer usually appears in the first non-heading line.
+  const excludedSupplierLine = /^(?:bill\s+of\s+supply|tax\s+invoice|invoice|original|duplicate|triplicate|supplier|seller|buyer|consignee|ship\s+to|bill\s+to)\b|invoice\s*(?:no|date|number)|gstin|gst\s*no|phone|mobile|email|www\.|@|^dated\b/i;
+  const supplierCandidates = lines.slice(0, 15).map(x => x.split(/\s+(?:invoice\s*(?:no\.?|number|#)|dated)\b/i)[0].trim()).filter(Boolean);
+  const supplierName = supplierCandidates.find(x => x.length >= 3 && x.length <= 120 && !excludedSupplierLine.test(x) && !/^\d/.test(x) && !/^(?:bill\s+of\s+supply|state|place|date|page|customer|buyer|details|mode|terms|delivery)\b/i.test(x)) ?? ''; 
   const itemLines: Array<{description:string; quantity:string; cost:string; tax:string; categoryName:string}> = [];
-  const skip = /^(?:subtotal|sub\s*total|grand\s*total|total|cgst|sgst|igst|tax|round\s*off|amount\s*in\s*words|bank\s*details|terms|invoice\s*no|date|hsn|sac|gstin|taxable\s*value|discount|freight|shipping|payment\s*terms|due\s*date)\b/i;
   const seen = new Set<string>();
-  for (const rawLine of lines) {
-    if (skip.test(rawLine) || itemLines.length >= 60) continue;
-    // Use the last three numeric columns as quantity, unit rate and line amount. OCR results remain editable.
-    const m = rawLine.match(/^(.*\S)\s+([0-9][0-9,]*(?:\.\d{1,3})?)\s*(?:kg|kgs|g|gm|gms|pcs|nos|box|boxes|mt|tonne|ltr|litre|unit|units)?\s+(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s+(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*$/i);
-    if (!m || /(invoice|grand\s*total|subtotal|taxable|cgst|sgst|igst|gst|phone|mobile|pin\s*code|balance|round\s*off)/i.test(m[1])) continue;
-    let description = m[1].replace(/^\s*(?:\d{1,3}[.)]?\s+)?/, '').replace(/\s+(?:hsn|sac)?\s*\d{4,8}\s*$/i, '').trim();
-    const quantity = m[2].replace(/,/g, '');
-    const cost = m[3].replace(/,/g, '');
+  for (const raw of lines) {
+    if (itemLines.length >= 60 || /^(?:subtotal|sub\s*total|grand\s*total|total|cgst|sgst|igst|tax|round\s*off|amount\s*in\s*words|bank\s*details|terms|invoice\s*no|date|hsn|sac|gstin|taxable\s*value|discount|freight|shipping|payment\s*terms|due\s*date)\b/i.test(raw)) continue;
+    // OCR may place HSN between description and quantity, and may put unit labels between numeric columns.
+    const m = raw.match(/^(.*?)\s+(?:\d{4,8}\s+)?([0-9][0-9,]*(?:\.\d{1,4})?)\s*(?:kg|kgs|g|gm|gms|pcs|nos|box|boxes|mt|tonne|ltr|litre|unit|units)?\s+(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:kg|kgs|g|gm|gms|pcs|nos|box|boxes|mt|tonne|ltr|litre|unit|units)?\s+(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*$/i);
+    if (!m || /(invoice|grand\s*total|subtotal|taxable|cgst|sgst|igst|gst|phone|mobile|pin\s*code|balance|round\s*off|amount\s*chargeable)/i.test(m[1])) continue;
+    const description = m[1].replace(/^\s*(?:\d{1,3}[.)]?\s+)/, '').replace(/\s+(?:hsn|sac)?\s*\d{4,8}\s*$/i, '').trim();
+    const quantity = m[2].replace(/,/g, ''); const cost = m[3].replace(/,/g, '');
     if (!description || description.length > 120 || Number(quantity) <= 0 || Number(cost) < 0) continue;
-    const key = `${description.toLowerCase()}|${quantity}|${cost}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const key = `${description.toLowerCase()}|${quantity}|${cost}`; if (seen.has(key)) continue; seen.add(key);
     itemLines.push({ description, quantity, cost, tax: '0', categoryName: 'Imported Items' });
   }
-  return { invoiceNo: no, invoiceDate, invoiceTotal, supplierName, itemLines };
+  return { invoiceNo, invoiceDate, invoiceTotal, supplierName, itemLines };
 }
 
 async function createOcrWorker(onProgress: (v: string) => void): Promise<any> {
