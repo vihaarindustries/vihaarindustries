@@ -7,7 +7,7 @@ import { useRefOptions } from '../FormFields';
 import { Alert, Btn, Input, Label, Select, Textarea } from '../ui';
 import { fmtMoney } from '@/lib/format';
 
-type Line = { product_id: string; description: string; quantity: string; cost: string; tax: string };
+type Line = { product_id: string; description: string; categoryName: string; quantity: string; cost: string; tax: string };
 type Draft = {
   name: string; type: string; blob: Blob; text: string; supplier: string; supplierName: string; location: string;
   invoiceNo: string; invoiceDate: string; invoiceTotal: string; shipping: string; notes: string; lines: Line[]; hash: string;
@@ -41,11 +41,26 @@ async function dbDelete(): Promise<void> {
 function loadScript(src: string, marker: () => boolean): Promise<void> {
   if (marker()) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-vihaar-src="${src}"]`) as HTMLScriptElement | null;
-    const script = existing ?? document.createElement('script');
-    const done = () => marker() ? resolve() : reject(new Error('OCR library did not initialise.'));
-    script.onload = done; script.onerror = () => reject(new Error('Could not load the OCR library. Your network, browser extension, or website security policy may be blocking the OCR assets. Refresh and retry; if it persists, share the browser Console error with your administrator.'));
-    if (!existing) { script.src = src; script.async = true; script.dataset.vihaarSrc = src; document.head.appendChild(script); }
+    let script = document.querySelector(`script[data-vihaar-src="${src}"]`) as HTMLScriptElement | null;
+    if (script?.dataset.failed === 'true') { script.remove(); script = null; }
+    if (script?.dataset.loaded === 'true') {
+      if (marker()) resolve(); else reject(new Error(`OCR asset loaded but did not initialise: ${new URL(src).hostname}. Check the browser Console for Content Security Policy or worker errors.`));
+      return;
+    }
+    const isNew = !script;
+    if (!script) {
+      script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.dataset.vihaarSrc = src;
+    }
+    const current = script;
+    const cleanup = () => { current.removeEventListener('load', loaded); current.removeEventListener('error', failed); };
+    const loaded = () => { current.dataset.loaded = 'true'; cleanup(); marker() ? resolve() : reject(new Error(`OCR library loaded but did not initialise: ${new URL(src).hostname}.`)); };
+    const failed = () => { current.dataset.failed = 'true'; cleanup(); reject(new Error(`Could not load OCR asset from ${new URL(src).hostname}. Check the browser Console and network/ad-blocker settings.`)); };
+    current.addEventListener('load', loaded, { once: true });
+    current.addEventListener('error', failed, { once: true });
+    if (isNew) document.head.appendChild(current);
   });
 }
 async function sha256(blob: Blob): Promise<string> {
@@ -53,75 +68,137 @@ async function sha256(blob: Blob): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 function parseInvoice(text: string) {
-  const no = text.match(/(?:invoice\s*(?:no\.?|number|#)|bill\s*(?:no\.?|number|#)|tax\s*invoice\s*(?:no\.?|number|#))\s*[:#-]?\s*([A-Z0-9\-/]{3,40})/i)?.[1] ?? '';
-  const rawDate = text.match(/(?:invoice\s*date|bill\s*date|date)\s*[:#-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}-\d{2}-\d{2})/i)?.[1] ?? '';
+  const clean = text.replace(/[\u00a0\u2007\u202f]/g, ' ').replace(/\r/g, '');
+  const no = clean.match(/(?:invoice\s*(?:no\.?|number|#)|bill\s*(?:no\.?|number|#)|tax\s*invoice\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/]{1,39})/i)?.[1] ?? '';
+  const rawDate = clean.match(/(?:invoice\s*date|bill\s*date|dated|date)\s*[:#-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}-\d{2}-\d{2})/i)?.[1] ?? '';
   let invoiceDate = '';
   if (rawDate) {
     const iso = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (iso) invoiceDate = rawDate;
-    else { const m = rawDate.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/); if (m) { const year = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]); const d = new Date(year, Number(m[2]) - 1, Number(m[1])); if (d.getFullYear() === year && d.getMonth() === Number(m[2]) - 1 && d.getDate() === Number(m[1])) invoiceDate = `${year}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; } }
-  }
-  const totalMatch = text.match(/(?:grand\s*total|invoice\s*total|net\s*payable|amount\s*payable|total\s*amount|total\s*due|total\s*incl(?:usive)?\s*tax)\s*[:₹ ]*([0-9,]+(?:\.[0-9]{1,2})?)/i);
-  const invoiceTotal = totalMatch?.[1]?.replace(/,/g, '') ?? '';
-  const lines = text.split(/\r?\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const supplierName = lines.slice(0, 10).find(x => x.length >= 3 && x.length <= 100 && !/(tax invoice|invoice no|invoice date|gstin|phone|mobile|email|bill to|ship to|original for|duplicate copy|cash memo)/i.test(x)) ?? '';
-  const itemLines: Array<{description:string; quantity:string; cost:string; tax:string}> = [];
-  const skip = /^(?:subtotal|sub total|grand total|total|cgst|sgst|igst|tax|round off|amount in words|bank details|terms|invoice no|date|hsn|sac|gstin)/i;
-  for (const line of lines) {
-    if (skip.test(line) || itemLines.length >= 40) continue;
-    // Conservative suggestion only: description + quantity + unit rate, optionally followed by line amount.
-    const m = line.match(/^(.{3,100}?)\s+(\d+(?:,\d{3})*(?:\.\d{1,3})?)\s+(?:(?:kg|kgs|g|gm|gms|pcs|nos|box|boxes|mt|tonne|ltr|litre)\s+)?(?:₹|rs\.?\s*)?(\d+(?:,\d{3})*(?:\.\d{1,2})?)(?:\s+(?:₹|rs\.?\s*)?\d+(?:,\d{3})*(?:\.\d{1,2})?)?$/i);
-    if (m && !/(invoice|total|tax|gst|date|phone|mobile|pin code)/i.test(m[1])) {
-      const description = m[1].replace(/^\d+[.)]\s*/, '').trim();
-      const quantity = m[2].replace(/,/g, ''); const cost = m[3].replace(/,/g, '');
-      if (description && Number(quantity) > 0 && Number(cost) >= 0) itemLines.push({ description, quantity, cost, tax: '5' });
+    else {
+      const m = rawDate.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+      if (m) {
+        const year = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]);
+        // Indian supplier bills normally use DD/MM/YYYY. This is only a suggestion; verify it.
+        const d = new Date(year, Number(m[2]) - 1, Number(m[1]));
+        if (d.getFullYear() === year && d.getMonth() === Number(m[2]) - 1 && d.getDate() === Number(m[1])) invoiceDate = `${year}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+      }
     }
+  }
+  const totalPatterns = [
+    /(?:grand\s*total|invoice\s*total|net\s*payable|amount\s*payable|total\s*amount|total\s*due|total\s*incl(?:usive)?\s*(?:of\s*)?tax|balance\s*due)\s*(?:inr|rs\.?|₹)?\s*[:=-]?\s*([0-9][0-9,]*(?:\.\d{1,2})?)/i,
+    /(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:only)?\s*$/im,
+  ];
+  let invoiceTotal = '';
+  for (const re of totalPatterns) { const m = clean.match(re); if (m) { invoiceTotal = m[1].replace(/,/g, ''); break; } }
+  const lines = clean.split(/\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const excludedSupplierLine = /(tax\s*invoice|invoice\s*(?:no|date|number)|gstin|gst\s*no|phone|mobile|email|bill\s*to|ship\s*to|original\s*for|duplicate\s*copy|cash\s*memo|www\.|@)/i;
+  const supplierName = lines.slice(0, 18).find(x => x.length >= 3 && x.length <= 120 && !excludedSupplierLine.test(x) && !/^\d/.test(x) && !/^(?:state|place|date|page|customer|buyer|consignee|details)\b/i.test(x)) ?? '';
+  const itemLines: Array<{description:string; quantity:string; cost:string; tax:string; categoryName:string}> = [];
+  const skip = /^(?:subtotal|sub\s*total|grand\s*total|total|cgst|sgst|igst|tax|round\s*off|amount\s*in\s*words|bank\s*details|terms|invoice\s*no|date|hsn|sac|gstin|taxable\s*value|discount|freight|shipping|payment\s*terms|due\s*date)\b/i;
+  const seen = new Set<string>();
+  for (const rawLine of lines) {
+    if (skip.test(rawLine) || itemLines.length >= 60) continue;
+    // Use the last three numeric columns as quantity, unit rate and line amount. OCR results remain editable.
+    const m = rawLine.match(/^(.*\S)\s+([0-9][0-9,]*(?:\.\d{1,3})?)\s*(?:kg|kgs|g|gm|gms|pcs|nos|box|boxes|mt|tonne|ltr|litre|unit|units)?\s+(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s+(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*$/i);
+    if (!m || /(invoice|grand\s*total|subtotal|taxable|cgst|sgst|igst|gst|phone|mobile|pin\s*code|balance|round\s*off)/i.test(m[1])) continue;
+    let description = m[1].replace(/^\s*(?:\d{1,3}[.)]?\s+)?/, '').replace(/\s+(?:hsn|sac)?\s*\d{4,8}\s*$/i, '').trim();
+    const quantity = m[2].replace(/,/g, '');
+    const cost = m[3].replace(/,/g, '');
+    if (!description || description.length > 120 || Number(quantity) <= 0 || Number(cost) < 0) continue;
+    const key = `${description.toLowerCase()}|${quantity}|${cost}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    itemLines.push({ description, quantity, cost, tax: '0', categoryName: 'Imported Items' });
   }
   return { invoiceNo: no, invoiceDate, invoiceTotal, supplierName, itemLines };
 }
+
+async function createOcrWorker(onProgress: (v: string) => void): Promise<any> {
+  await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js', () => !!(window as TesseractWindow).Tesseract);
+  const T = (window as TesseractWindow).Tesseract;
+  if (!T?.createWorker) throw new Error('Tesseract OCR worker is unavailable. Refresh the page and check whether the browser blocked worker or language-data requests.');
+  return T.createWorker('eng', 1, {
+    workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
+    langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+    logger: (m: any) => {
+      if (m?.status) onProgress(`OCR: ${m.status}${typeof m.progress === 'number' ? ` ${Math.round(m.progress * 100)}%` : ''}`);
+    },
+  });
+}
+
 async function extractText(file: File, onProgress: (v: string) => void): Promise<string> {
   const w = window as TesseractWindow;
+  let pdf: any = null;
+  let pageCount = 1;
+  let pdfjs: any = null;
   if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', () => !!(window as TesseractWindow).pdfjsLib);
-    const pdfjs = w.pdfjsLib;
+    pdfjs = w.pdfjsLib;
     pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-    let text = '';
-    for (let p = 1; p <= Math.min(pdf.numPages, 20); p++) {
-      onProgress(`Reading PDF text · page ${p} of ${Math.min(pdf.numPages, 20)}`);
-      const page = await pdf.getPage(p); const content = await page.getTextContent();
-      // Preserve visual rows from digital PDFs; flattening every item into one line prevents line-item parsing.
-      const rows = new Map<number, Array<{ x: number; text: string }>>();
-      for (const item of content.items as any[]) {
-        if (typeof item.str !== 'string' || !item.str.trim()) continue;
-        const x = Number(item.transform?.[4] ?? 0);
-        const y = Math.round(Number(item.transform?.[5] ?? 0) / 3) * 3;
-        const row = rows.get(y) ?? []; row.push({ x, text: item.str.trim() }); rows.set(y, row);
-      }
-      text += `\n${Array.from(rows.entries()).sort((a, b) => b[0] - a[0]).map(([, row]) => row.sort((a, b) => a.x - b.x).map((part) => part.text).join(' ')).join('\n')}\n`;
-    }
-    if (text.replace(/\s/g, '').length > 40) return text;
-    await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js', () => !!(window as TesseractWindow).Tesseract);
-    const ocr: string[] = [];
-    for (let p = 1; p <= Math.min(pdf.numPages, 5); p++) {
-      onProgress(`Scanning PDF · page ${p} of ${Math.min(pdf.numPages, 5)}`);
-      const page = await pdf.getPage(p); const viewport = page.getViewport({ scale: 1.6 });
-      const canvas = document.createElement('canvas'); canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      const result = await w.Tesseract.recognize(canvas, 'eng'); ocr.push(result.data.text); canvas.width = 0; canvas.height = 0;
-    }
-    return ocr.join('\n');
+    pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    pageCount = Math.min(pdf.numPages, 20);
   }
-  await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js', () => !!(window as TesseractWindow).Tesseract);
-  onProgress('Recognising text in the image');
-  const result = await w.Tesseract.recognize(file, 'eng');
-  return result.data.text as string;
+  let worker: any = null;
+  const resultPages: string[] = [];
+  try {
+    for (let p = 1; p <= pageCount; p++) {
+      let digitalText = '';
+      let canvas: HTMLCanvasElement | null = null;
+      if (pdf) {
+        onProgress(`Reading PDF text · page ${p} of ${pageCount}`);
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const rows = new Map<number, Array<{ x: number; text: string }>>();
+        for (const item of content.items as any[]) {
+          if (typeof item.str !== 'string' || !item.str.trim()) continue;
+          const x = Number(item.transform?.[4] ?? 0);
+          const y = Math.round(Number(item.transform?.[5] ?? 0) / 3) * 3;
+          const row = rows.get(y) ?? []; row.push({ x, text: item.str.trim() }); rows.set(y, row);
+        }
+        digitalText = Array.from(rows.entries()).sort((a,b) => b[0] - a[0]).map(([, row]) => row.sort((a,b) => a.x - b.x).map(part => part.text).join(' ')).join('\n');
+        const numericRows = digitalText.split(/\n/).filter(line => (line.match(/[0-9][0-9,]*(?:\.\d+)?/g) ?? []).length >= 3).length;
+        // Mixed PDFs often have selectable headers but scanned item tables. OCR pages that lack meaningful selectable text or item rows.
+        const needsOcr = digitalText.replace(/\s/g, '').length < 100 || numericRows < 1;
+        if (!needsOcr) { resultPages.push(digitalText); continue; }
+        const viewport = page.getViewport({ scale: 2.0 });
+        canvas = document.createElement('canvas'); canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Could not prepare a local canvas for this PDF page.');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+      } else {
+        canvas = document.createElement('canvas');
+        const img = new Image();
+        const imageUrl = URL.createObjectURL(file);
+        try {
+          await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('The selected image could not be decoded.')); img.src = imageUrl; });
+          const scale = Math.min(2.5, Math.max(0.25, 2400 / Math.max(img.naturalWidth, img.naturalHeight)));
+          canvas.width = Math.ceil(img.naturalWidth * scale); canvas.height = Math.ceil(img.naturalHeight * scale);
+          const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Could not prepare a local canvas for OCR.');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        } finally { URL.revokeObjectURL(imageUrl); }
+      }
+      if (!worker) worker = await createOcrWorker(onProgress);
+      onProgress(`Recognising invoice text · page ${p} of ${pageCount}`);
+      if (!canvas) throw new Error('Could not prepare this invoice page for OCR.');
+      const ocrResult = await worker.recognize(canvas);
+      const ocrText = String(ocrResult?.data?.text ?? '').trim();
+      resultPages.push([digitalText, ocrText].filter(Boolean).join('\n'));
+      if (canvas) { canvas.width = 0; canvas.height = 0; }
+    }
+  } finally {
+    if (worker) await worker.terminate().catch(() => {});
+  }
+  const output = resultPages.join('\n\n').trim();
+  if (output.replace(/\s/g, '').length < 10) throw new Error('No readable text was detected. Try a clearer scan or a higher-resolution photo. You can still enter invoice details manually.');
+  return output;
 }
-const emptyLine = (): Line => ({ product_id: '', description: '', quantity: '1', cost: '', tax: '5' });
+const emptyLine = (): Line => ({ product_id: '', description: '', categoryName: 'Imported Items', quantity: '1', cost: '', tax: '0' });
 
 export default function InvoiceOCR() {
   const suppliers = useRefOptions('suppliers', 'name');
   const products = useRefOptions('products', 'name');
+  const categories = useRefOptions('categories', 'name');
   const locations = useRefOptions('inventory_locations', 'name');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -135,7 +212,7 @@ export default function InvoiceOCR() {
 
   useEffect(() => {
     let active = true;
-    dbGet().then((saved) => { if (active && saved) { setDraft(saved); setNotice('Recovered a pending invoice draft from this browser.'); } }).catch(() => { if (active) setError('Browser storage is unavailable. Do not proceed until local storage works.'); }).finally(() => { if (active) setRestoreDone(true); });
+    dbGet().then((saved) => { if (active && saved) { const restored = { ...saved, lines: (saved.lines ?? []).map((line: Line) => ({ ...line, categoryName: line.categoryName || 'Imported Items' })) }; setDraft(restored); setNotice('Recovered a pending invoice draft from this browser.'); } }).catch(() => { if (active) setError('Browser storage is unavailable. Do not proceed until local storage works.'); }).finally(() => { if (active) setRestoreDone(true); });
     return () => { active = false; };
   }, []);
   useEffect(() => {
@@ -166,17 +243,17 @@ export default function InvoiceOCR() {
       const text = await extractText(file, setStatus);
       const parsed = parseInvoice(text);
       const matchingSupplier = suppliers.find((x) => x.label.trim().toLowerCase() === parsed.supplierName.trim().toLowerCase());
-      const parsedLines: Line[] = parsed.itemLines.length ? parsed.itemLines.map((x) => ({ product_id: '', description: x.description, quantity: x.quantity, cost: x.cost, tax: x.tax })) : [emptyLine()];
+      const parsedLines: Line[] = parsed.itemLines.length ? parsed.itemLines.map((x) => { const existing = products.find((p) => p.label.trim().toLowerCase() === x.description.trim().toLowerCase()); return { product_id: existing?.id ?? '', description: x.description, categoryName: x.categoryName || 'Imported Items', quantity: x.quantity, cost: x.cost, tax: x.tax }; }) : [emptyLine()];
       next = { ...next, text, invoiceNo: parsed.invoiceNo, invoiceDate: parsed.invoiceDate, invoiceTotal: parsed.invoiceTotal, supplierName: parsed.supplierName, supplier: matchingSupplier?.id ?? '', lines: parsedLines }; 
       setDraft(next); await dbPut(next);
-      setStatus('OCR complete. Please verify every field against the original bill.');
-    } catch (e) { setError(errMsg(e)); setStatus('OCR did not complete. You can retry or enter the values manually.'); }
+      setStatus(text.trim().length < 40 ? 'OCR returned very little text. Check the raw OCR text below, improve the scan, or enter fields manually.' : `OCR extracted ${text.trim().length} characters. Please verify every field against the original bill.`);
+    } catch (e) { setError(errMsg(e)); setStatus('OCR did not complete. Open “View raw OCR text” and the browser Console (F12) to diagnose blocked worker/language assets. You can retry or enter values manually.'); }
     finally { setBusy(false); }
   }
   async function runOcrAgain() {
     if (!draft) return;
     setBusy(true); setError('');
-    try { const text = await extractText(new File([draft.blob], draft.name, { type: draft.type }), setStatus); const parsed = parseInvoice(text); const matchingSupplier = suppliers.find((x) => x.label.trim().toLowerCase() === parsed.supplierName.trim().toLowerCase()); const next = { ...draft, text, ...(!draft.invoiceNo ? { invoiceNo: parsed.invoiceNo } : {}), ...(!draft.invoiceDate ? { invoiceDate: parsed.invoiceDate } : {}), ...(!draft.invoiceTotal ? { invoiceTotal: parsed.invoiceTotal } : {}), ...(!draft.supplierName ? { supplierName: parsed.supplierName } : {}), ...(!draft.supplier && matchingSupplier ? { supplier: matchingSupplier.id } : {}), ...(draft.lines.every((l) => !l.description.trim()) && parsed.itemLines.length ? { lines: parsed.itemLines.map((x) => ({ product_id: '', description: x.description, quantity: x.quantity, cost: x.cost, tax: x.tax })) } : {}) }; setDraft(next); await dbPut(next); setStatus('OCR refreshed. Check all values manually.'); }
+    try { const text = await extractText(new File([draft.blob], draft.name, { type: draft.type }), setStatus); const parsed = parseInvoice(text); const matchingSupplier = suppliers.find((x) => x.label.trim().toLowerCase() === parsed.supplierName.trim().toLowerCase()); const next = { ...draft, text, ...(!draft.invoiceNo ? { invoiceNo: parsed.invoiceNo } : {}), ...(!draft.invoiceDate ? { invoiceDate: parsed.invoiceDate } : {}), ...(!draft.invoiceTotal ? { invoiceTotal: parsed.invoiceTotal } : {}), ...(!draft.supplierName ? { supplierName: parsed.supplierName } : {}), ...(!draft.supplier && matchingSupplier ? { supplier: matchingSupplier.id } : {}), ...(draft.lines.every((l) => !l.description.trim()) && parsed.itemLines.length ? { lines: parsed.itemLines.map((x) => { const existing = products.find((p) => p.label.trim().toLowerCase() === x.description.trim().toLowerCase()); return { product_id: existing?.id ?? '', description: x.description, categoryName: x.categoryName || 'Imported Items', quantity: x.quantity, cost: x.cost, tax: x.tax }; }) } : {}) }; setDraft(next); await dbPut(next); setStatus('OCR refreshed. Check all values manually.'); }
     catch (e) { setError(errMsg(e)); } finally { setBusy(false); }
   }
   async function accept() {
@@ -184,13 +261,13 @@ export default function InvoiceOCR() {
     setError(''); setNotice('');
     if (!draft.supplier && !draft.supplierName.trim()) return setError('Choose an existing supplier or enter the new supplier name.');
     if (!draft.invoiceNo.trim()) return setError('Enter the supplier invoice number.');
-    if (!draft.lines.length || draft.lines.some((l) => (!l.product_id && !l.description.trim()) || !(Number(l.quantity) > 0) || !l.cost.trim() || !Number.isFinite(Number(l.cost)) || Number(l.cost) < 0 || !l.tax.trim() || !Number.isFinite(Number(l.tax)) || Number(l.tax) < 0 || Number(l.tax) > 100)) return setError('Each line needs an existing product or a new product name, positive quantity, valid cost and GST rate.');
+    if (!draft.lines.length || draft.lines.some((l) => (!l.product_id && (!l.description.trim() || !l.categoryName.trim())) || !(Number(l.quantity) > 0) || !l.cost.trim() || !Number.isFinite(Number(l.cost)) || Number(l.cost) < 0 || !l.tax.trim() || !Number.isFinite(Number(l.tax)) || Number(l.tax) < 0 || Number(l.tax) > 100)) return setError('Each line needs an existing product or a new product name, positive quantity, valid cost and GST rate.');
     if (draft.invoiceTotal.trim() && (!Number.isFinite(Number(draft.invoiceTotal)) || Number(draft.invoiceTotal) < 0)) return setError('Check the invoice total amount.');
     if (draft.invoiceDate && !/^\d{4}-\d{2}-\d{2}$/.test(draft.invoiceDate)) return setError('Check the invoice date.');
     if (!confirmAccept) return setError('Tick the review confirmation before accepting this bill.');
     setBusy(true); setStatus('Saving approved purchase to Supabase…');
     try {
-      const items = draft.lines.map((l) => ({ ...(l.product_id ? { product_id: l.product_id } : {}), product_name: l.description.trim(), quantity: Number(l.quantity), unit_cost_minor: Math.round(Number(l.cost) * 100), tax_rate: Number(l.tax) || 0 }));
+      const items = draft.lines.map((l) => ({ ...(l.product_id ? { product_id: l.product_id } : {}), product_name: l.description.trim(), category_name: l.categoryName.trim() || 'Imported Items', quantity: Number(l.quantity), unit_cost_minor: Math.round(Number(l.cost) * 100), tax_rate: Number(l.tax) || 0 }));
       const result = await rpc<string>('create_purchase_from_invoice', {
         p_supplier: draft.supplier || undefined, p_supplier_name: draft.supplierName.trim() || undefined, p_items: items, p_location: draft.location || undefined, p_invoice: draft.invoiceNo.trim(),
         p_invoice_date: draft.invoiceDate || undefined, p_shipping_minor: Math.round(Math.max(0, Number(draft.shipping) || 0) * 100),
@@ -210,7 +287,7 @@ export default function InvoiceOCR() {
 
   if (!restoreDone) return <div className="p-6 text-sm muted"><Loader2 className="inline mr-2 animate-spin" size={16} />Checking browser-local drafts…</div>;
   return <div className="space-y-5">
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><div className="flex gap-2 font-semibold"><ShieldCheck size={18} /> Local document handling</div><p className="mt-1">The bill is processed in this browser and is not uploaded to Supabase Storage or an OCR API. OCR software and its language model are downloaded from static CDNs; the invoice file itself is not sent there. Extraction is a suggestion only, and all fields must be checked before approval. Browser storage is temporary, so keep your own archived copy.</p></div>
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><div className="flex gap-2 font-semibold"><ShieldCheck size={18} /> Local document handling</div><p className="mt-1">The bill is processed in this browser and is not uploaded to Supabase Storage or an OCR API. OCR code and English language data are downloaded from static CDNs; the invoice file itself is processed locally. Extraction is only a suggestion, and every field must be checked before approval. Browser storage is temporary, so keep your own archived copy.</p></div>
     {error && <Alert tone="error">{error}</Alert>}{notice && <Alert tone="success">{notice}</Alert>}
     {status && <p className="text-sm muted" aria-live="polite">{busy && <Loader2 className="inline mr-2 animate-spin" size={15} />}{status}</p>}
     {!draft ? <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
@@ -231,6 +308,7 @@ export default function InvoiceOCR() {
               {draft.lines.map((line, i) => <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-3"><div className="flex justify-between gap-2"><p className="text-xs font-bold uppercase text-gray-500">Line {i + 1}</p><button className="text-xs text-red-600" onClick={() => update({ lines: draft.lines.filter((_, j) => i !== j) })} disabled={draft.lines.length === 1}>Remove</button></div>
                 <Label>Existing product (optional)<Select value={line.product_id} onChange={(e) => update({ lines: draft.lines.map((l,j) => i === j ? { ...l, product_id: e.target.value } : l) })}><option value="">Create product from description below…</option>{products.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</Select></Label>
                 <Label>{line.product_id ? 'Bill description (for reference)' : 'New product name (required if no existing product selected)'}<Input maxLength={120} value={line.description} onChange={(e) => update({ lines: draft.lines.map((l,j) => i === j ? { ...l, description: e.target.value } : l) })} /></Label>
+                {!line.product_id && <Label help="Choose an existing category name or type a new one. A missing category is created only after you approve the invoice.">Product category<Input list={`invoice-category-options-${i}`} maxLength={100} value={line.categoryName} onChange={(e) => update({ lines: draft.lines.map((l,j) => i === j ? { ...l, categoryName: e.target.value } : l) })} /><datalist id={`invoice-category-options-${i}`}>{categories.map((c) => <option key={c.id} value={c.label} />)}</datalist></Label>}
                 <div className="grid grid-cols-3 gap-2"><Label>Quantity<Input inputMode="decimal" value={line.quantity} onChange={(e) => update({ lines: draft.lines.map((l,j) => i === j ? { ...l, quantity: e.target.value } : l) })} /></Label><Label>Unit cost ₹<Input inputMode="decimal" value={line.cost} onChange={(e) => update({ lines: draft.lines.map((l,j) => i === j ? { ...l, cost: e.target.value } : l) })} /></Label><Label>GST %<Input inputMode="decimal" value={line.tax} onChange={(e) => update({ lines: draft.lines.map((l,j) => i === j ? { ...l, tax: e.target.value } : l) })} /></Label></div>
               </div>)}
             </div>
