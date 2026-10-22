@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Alert, Btn, Confirm, Input, Label, Modal, PageHeader, Select, Tabs, Textarea, useFlash } from '../ui';
 import ResourceManager from '../ResourceManager';
+import InvoiceOCR from './InvoiceOCR';
 import { useRefOptions } from '../FormFields';
 import { useRole } from '../role';
 import { rpc, errMsg } from '@/lib/admin/client';
@@ -20,12 +21,12 @@ export default function PurchasesView() {
     <PageHeader title="Purchases & suppliers" subtitle="Record what you buy. Receiving a purchase adds stock and books what you owe the supplier."
       actions={canOps && <Btn onClick={() => setOpen(true)}><Plus size={15} />New purchase</Btn>} />
     {node && <div className="mb-4">{node}</div>}
-    <Tabs value={tab} onChange={setTab} tabs={[{ key: 'po', label: 'Purchase orders' }, { key: 'suppliers', label: 'Suppliers' }]} />
+    <Tabs value={tab} onChange={setTab} tabs={[{ key: 'po', label: 'Purchase orders' }, { key: 'suppliers', label: 'Suppliers' }, ...(canOps ? [{ key: 'import', label: 'Import bill' }] : [])]} />
     {tab === 'po' ? <ResourceManager resource="purchase_orders" refreshKey={key} rowActions={(r) => <>
       {canOps && r.status === 'ordered' && <><Confirm variant="primary" label="Receive stock" message={`Mark ${r.po_number} as received? Stock is added and the amount owed to the supplier is booked.`} onConfirm={() => run(() => rpc('receive_purchase', { p_po: r.id }), 'Stock received.')} />
         <Confirm label="Cancel" message={`Cancel ${r.po_number}?`} onConfirm={() => run(() => rpc('cancel_purchase', { p_po: r.id }), 'Purchase cancelled.')} /></>}
       {canFin && r.status === 'received' && r.payment_status !== 'paid' && <Btn size="sm" variant="outline" onClick={() => setPay({ id: r.id, num: String(r.po_number), due: Number(r.total_minor) - Number(r.amount_paid_minor) })}>Pay supplier</Btn>}</>} />
-      : <ResourceManager resource="suppliers" />}
+      : tab === 'suppliers' ? <ResourceManager resource="suppliers" /> : <InvoiceOCR />}
     {open && <NewPurchase onClose={() => setOpen(false)} onDone={() => { setOpen(false); show('success', 'Purchase recorded. Press Receive stock when the goods arrive.'); bump(); }} />}
     {pay && <PayModal po={pay} onClose={() => setPay(null)} onDone={() => { setPay(null); show('success', 'Payment recorded.'); bump(); }} />}
   </div>;
