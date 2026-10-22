@@ -42,7 +42,7 @@ export const RPC: Record<string, RpcDef> = {
       batch_number: text(60), manufactured_on: odate, expires_on: odate } } } } },
   create_purchase_from_invoice: { roles: OPS, mutating: true, params: {
     p_items: { t: 'arr', min: 1, max: 100, of: { t: 'shape', fields: {
-      product_id: { t: 'uuid', optional: true }, product_name: text(120),
+      product_id: { t: 'uuid', optional: true }, product_name: text(120), category_name: text(100),
       quantity: { t: 'num', min: 0.001, max: 1e7 }, unit_cost_minor: minor(), tax_rate: { t: 'num', min: 0, max: 100, optional: true },
       batch_number: text(60), manufactured_on: odate, expires_on: odate } } },
     p_supplier: { t: 'uuid', optional: true }, p_supplier_name: text(180), p_location: ouuid, p_expected: odate,
