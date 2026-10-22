@@ -1,2 +1,29 @@
 import Header from '@/components/Header';
-export default function Enquiry(){return <><Header/><main className="container py-14 max-w-3xl"><div className="eyebrow">LET'S TALK</div><h1 className="text-4xl font-black mt-3">Tell us what you're sourcing.</h1><p className="muted mt-3">Use this form for product questions, bulk pricing, samples or export enquiries. The form is a UI scaffold; connect the submit handler to a protected server action before launch.</p><form className="bg-white border border-gray-200 rounded-xl p-6 mt-8 grid sm:grid-cols-2 gap-4" action="/api/enquiry" method="post"><div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}><label>Leave this empty<input name="website" tabIndex={-1} autoComplete="off" /></label></div><label className="text-sm font-semibold">Your name<input className="field block mt-2" name="name" required/></label><label className="text-sm font-semibold">Work email<input className="field block mt-2" name="email" type="email" required/></label><label className="text-sm font-semibold">Company (optional)<input className="field block mt-2" name="company"/></label><label className="text-sm font-semibold">Enquiry type<select className="field block mt-2" name="type"><option>Product enquiry</option><option>Bulk / wholesale</option><option>Export quotation</option><option>Sample request</option><option>Other</option></select></label><label className="text-sm font-semibold sm:col-span-2">Product and specification<textarea className="field block mt-2" rows={3} name="details" required/></label><label className="text-sm font-semibold">Estimated quantity<input className="field block mt-2" name="quantity" placeholder="e.g. 500 kg / 20 cartons"/></label><label className="text-sm font-semibold">Destination country<input className="field block mt-2" name="destination"/></label><button className="btn sm:col-span-2" type="submit">Send enquiry ↗</button></form></main></>}
+import Footer from '@/components/site/Footer';
+import EnquiryForm from '@/components/site/EnquiryForm';
+import { createPublicClient } from '@/lib/supabase/public';
+import { getBusiness } from '@/lib/site';
+import { addressLines, telLink, whatsappLink } from '@/lib/business';
+
+type SP = { submitted?: string; product?: string; type?: string };
+
+export default async function Enquiry({ searchParams }: { searchParams: Promise<SP> | SP }) {
+  const sp = await searchParams; const b = await getBusiness();
+  // "Request quote" on a product opens this page with that product already chosen.
+  let product: { slug: string; name: string } | null = null;
+  const slug = typeof sp.product === 'string' && /^[a-z0-9-]{1,80}$/.test(sp.product) ? sp.product : '';
+  if (slug) { try { const { data } = await createPublicClient()?.from('products').select('slug, name').eq('slug', slug).eq('is_active', true).maybeSingle() ?? { data: null }; if (data) product = data; } catch { /* ignore */ } }
+  const type = sp.type === 'sample' ? 'Sample request' : product ? 'Bulk / wholesale' : 'Product enquiry';
+  const wa = whatsappLink(b); const tel = telLink(b.phone); const lines = addressLines(b);
+  return <><Header /><main className="container py-14 max-w-5xl"><div className="grid md:grid-cols-[1.4fr_1fr] gap-10 items-start">
+    <div><div className="eyebrow">LET&apos;S TALK</div><h1 className="text-4xl font-black mt-3">Tell us what you&apos;re sourcing.</h1><p className="muted mt-3">Use this form for product questions, bulk pricing, samples or export enquiries. We reply by email.</p>
+      {sp.submitted === '1' ? <div role="status" className="mt-8 bg-[#e3f4e9] border border-[#00994d]/30 text-[#006b38] rounded-xl p-6"><div className="font-black text-lg">Thank you — your enquiry has been received.</div><p className="text-sm mt-2">Our team will get back to you shortly{b.email ? <> at the email you provided. You can also write to <b>{b.email}</b></> : ''}.</p></div>
+        : <div className="mt-8"><EnquiryForm type={type} productSlug={product?.slug} productName={product?.name} /></div>}</div>
+    <aside className="bg-white border border-gray-200 rounded-xl p-6 space-y-4 text-sm"><h2 className="font-black text-lg">{b.name}</h2>
+      {lines.length > 0 && <div><div className="eyebrow !text-[9px] mb-1">ADDRESS</div>{lines.map((l, i) => <div key={i}>{l}</div>)}</div>}
+      {b.phone && <div><div className="eyebrow !text-[9px] mb-1">PHONE</div>{tel ? <a className="font-semibold hover:underline" href={tel}>{b.phone}</a> : b.phone}</div>}
+      {b.email && <div><div className="eyebrow !text-[9px] mb-1">EMAIL</div><a className="font-semibold hover:underline break-all" href={`mailto:${b.email}`}>{b.email}</a></div>}
+      {b.hours && <div><div className="eyebrow !text-[9px] mb-1">HOURS</div>{b.hours}</div>}
+      {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="btn w-full !bg-[#25D366] !border-[#25D366]">Chat on WhatsApp ↗</a>}
+    </aside></div></main><Footer /></>;
+}
