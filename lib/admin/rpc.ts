@@ -40,6 +40,14 @@ export const RPC: Record<string, RpcDef> = {
     p_items: { t: 'arr', min: 1, max: 100, of: { t: 'shape', fields: {
       product_id: uuid, quantity: { t: 'num', min: 0.001, max: 1e7 }, unit_cost_minor: minor(), tax_rate: { t: 'num', min: 0, max: 100, optional: true },
       batch_number: text(60), manufactured_on: odate, expires_on: odate } } } } },
+  create_purchase_from_invoice: { roles: OPS, mutating: true, params: {
+    p_items: { t: 'arr', min: 1, max: 100, of: { t: 'shape', fields: {
+      product_id: { t: 'uuid', optional: true }, product_name: text(120),
+      quantity: { t: 'num', min: 0.001, max: 1e7 }, unit_cost_minor: minor(), tax_rate: { t: 'num', min: 0, max: 100, optional: true },
+      batch_number: text(60), manufactured_on: odate, expires_on: odate } } },
+    p_supplier: { t: 'uuid', optional: true }, p_supplier_name: text(180), p_location: ouuid, p_expected: odate,
+    p_invoice: text(60), p_shipping_minor: minor(true), p_notes: text(2000), p_invoice_date: odate,
+    p_source_file_name: text(255), p_source_file_sha256: { t: 'str', optional: true, pattern: /^[a-f0-9]{64}$/ } } },
   receive_purchase: { roles: OPS, mutating: true, params: { p_po: uuid } },
   cancel_purchase: { roles: OPS, mutating: true, params: { p_po: uuid } },
   record_purchase_payment: { roles: FIN, mutating: true, params: { p_po: uuid, p_amount_minor: { t: 'int', min: 1, max: 1e11 }, p_method: { t: 'str', oneOf: PAYMENT_METHODS }, p_reference: text(80) } },
