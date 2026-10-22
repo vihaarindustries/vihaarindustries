@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import Logo from '@/components/site/Logo';
+import Footer from '@/components/site/Footer';
+import { getBusiness } from '@/lib/site';
 
 const benefits = [
   { number: '01', title: 'Quality-led ingredients', text: 'Explore dehydrated spices and ingredient options for kitchens, food brands and manufacturers.' },
@@ -6,22 +9,20 @@ const benefits = [
   { number: '03', title: 'From India to global markets', text: 'Tell us your product, quantity and destination and let’s discuss the right supply solution.' },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const b = await getBusiness();
   return (
     <main className="choice-page min-h-screen overflow-hidden">
       <div className="choice-glow choice-glow-one" aria-hidden="true" />
       <div className="choice-glow choice-glow-two" aria-hidden="true" />
       <header className="container flex items-center justify-between py-6 relative z-10">
-        <Link href="/" aria-label="Vihaar Industries home" className="flex items-center gap-3">
-          <div className="choice-logo">V</div>
-          <div><div className="text-white font-black text-xl tracking-tight">Vihaar<span className="text-[#20bd70]">.</span></div><div className="text-[9px] tracking-[.28em] text-gray-400 mt-1">INDUSTRIES</div></div>
-        </Link>
+        <Logo dark />
         <Link href="/enquiry" className="choice-top-link">Contact us <span aria-hidden="true">↗</span></Link>
       </header>
 
       <section className="container relative z-10 pt-8 pb-14 md:pt-14 md:pb-20">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="choice-eyebrow"><span className="choice-dot" /> QUALITY SPICES. THOUGHTFULLY SOURCED.</div>
+          <div className="choice-eyebrow"><span className="choice-dot" /> {(b.tagline || 'QUALITY SPICES. THOUGHTFULLY SOURCED.').toUpperCase()}</div>
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-black tracking-[-.055em] leading-[1.02] text-white mt-6">Goodness in every grain.<br /><span className="choice-highlight">Made for your world.</span></h1>
           <p className="max-w-xl mx-auto text-sm md:text-base leading-7 text-gray-300 mt-6">From everyday kitchens to high-volume food production, find the Vihaar experience that works for you.</p>
         </div>
@@ -49,7 +50,7 @@ export default function Home() {
           {benefits.map((item) => <div key={item.number} className="flex gap-4"><div className="text-[#28c779] text-sm font-black pt-1">{item.number}</div><div><h3 className="text-white font-bold">{item.title}</h3><p className="text-sm text-gray-400 leading-6 mt-2">{item.text}</p></div></div>)}
         </div>
       </section>
-      <footer className="container relative z-10 flex flex-col sm:flex-row justify-between gap-3 py-6 text-xs text-gray-500"><span>© {new Date().getFullYear()} Vihaar Industries</span><div className="flex gap-5"><Link href="/enquiry" className="hover:text-white">Contact</Link><Link href="/auth/sign-in" className="hover:text-white">Sign in</Link></div></footer>
+      <div className="relative z-10"><Footer home /></div>
     </main>
   );
 }
