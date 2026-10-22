@@ -234,6 +234,22 @@ export const RESOURCES: Record<string, ResourceDef> = {
     columns: [{ key: 'name', label: 'Supplier' }, { key: 'contact_name', label: 'Contact' }, { key: 'phone', label: 'Phone' }, { key: 'is_active', label: 'Active', type: 'bool' }],
   },
 
+  couriers: {
+    key: 'couriers', label: 'Couriers', singular: 'courier', table: 'couriers', orderBy: { column: 'name', asc: true },
+    read: OPS_FIN, write: OPS, remove: OWNER_ADMIN, search: ['name'],
+    emptyText: 'No couriers yet. Add the shipping companies you use.',
+    fields: [
+      { name: 'name', label: 'Courier name', type: 'text', required: true, max: 60 },
+      { name: 'serves_state', label: 'Delivers within your own state', type: 'bool', default: false, group: 'Used for' },
+      { name: 'serves_national', label: 'Delivers to the rest of India', type: 'bool', default: false, group: 'Used for' },
+      { name: 'serves_export', label: 'Delivers abroad (export)', type: 'bool', default: false, group: 'Used for' },
+      { name: 'tracking_url_template', label: 'Tracking link format', type: 'text', max: 300, placeholder: 'https://example.com/track?no={tracking}', help: 'Must start with https:// and contain {tracking}, which is replaced by the tracking number.' },
+      { name: 'notes', label: 'Notes', type: 'textarea', max: 500 },
+      { name: 'is_active', label: 'Active', type: 'bool', default: true },
+    ],
+    columns: [{ key: 'name', label: 'Courier' }, { key: 'serves_state', label: 'In state', type: 'bool' }, { key: 'serves_national', label: 'India', type: 'bool' }, { key: 'serves_export', label: 'Export', type: 'bool' }, { key: 'tracking_url_template', label: 'Link saved', type: 'bool' }, { key: 'is_active', label: 'Active', type: 'bool' }],
+  },
+
   inventory_locations: {
     key: 'inventory_locations', label: 'Storage locations', singular: 'location', table: 'inventory_locations', orderBy: { column: 'name', asc: true },
     read: OPS_FIN, write: OPS, remove: OWNER_ADMIN, search: ['name'],
