@@ -12,7 +12,7 @@ export const INTEGRATIONS: Integration[] = [
   { key: 'supabase_service', name: 'Supabase service role', purpose: 'Staff invitations, visit tracking, coupon preview and order lookup (server only).', env: ['SUPABASE_SERVICE_ROLE_KEY'], status: 'live' },
   { key: 'email', name: 'Email (Resend / Brevo / SES)', purpose: 'Notify your team of new enquiries and send order updates.', env: ['EMAIL_PROVIDER_API_KEY', 'EMAIL_FROM', 'ENQUIRY_NOTIFY_TO'], status: 'placeholder' },
   { key: 'payments', name: 'Payment gateway (Razorpay / Stripe)', purpose: 'Online card and UPI payments at checkout.', env: ['PAYMENT_KEY_ID', 'PAYMENT_KEY_SECRET', 'PAYMENT_WEBHOOK_SECRET'], status: 'placeholder' },
-  { key: 'shipping', name: 'Shipping (Shiprocket / Delhivery)', purpose: 'Create shipments, print labels and fetch live tracking.', env: ['SHIPPING_API_KEY', 'SHIPPING_API_SECRET'], status: 'placeholder' },
+  { key: 'shipping', name: 'Courier live tracking (optional)', purpose: 'Not needed for tracking links, which work for every courier from Control room → Couriers. Add only if you want live status events from a courier that offers an API.', env: ['SHIPPING_API_KEY', 'SHIPPING_API_SECRET'], status: 'placeholder' },
   { key: 'whatsapp', name: 'WhatsApp Business / SMS', purpose: 'Send order and shipment updates to customers.', env: ['MESSAGING_API_KEY', 'MESSAGING_SENDER_ID'], status: 'placeholder' },
   { key: 'gst', name: 'GST e-invoicing / e-way bill', purpose: 'Generate IRN and e-way bills for taxable shipments.', env: ['GST_API_USER', 'GST_API_PASSWORD', 'GST_GSTIN'], status: 'placeholder' },
   { key: 'fx', name: 'Currency rates', purpose: 'Convert export invoices (USD, AED ...) into rupees for the books.', env: ['FX_API_KEY'], status: 'placeholder' },
