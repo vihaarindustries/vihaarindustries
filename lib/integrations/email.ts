@@ -1,14 +1,22 @@
 import 'server-only';
 
 /**
- * PLACEHOLDER. Replace the body of sendEmail() with your provider's API call (Resend, Brevo, SES ...).
- * Until EMAIL_PROVIDER_API_KEY is set this does nothing, so enquiries are still saved safely in the database.
+ * Sends one plain-text email through Resend (https://resend.com).
+ * Needs EMAIL_PROVIDER_API_KEY and EMAIL_FROM (an address on a domain verified in Resend, e.g. "Vihaar Industries <orders@yourdomain.com>").
+ * If either is missing this does nothing and returns false, so orders and enquiries still work. To use another provider
+ * (Brevo, SES ...) only change the fetch call below.
  */
-export async function sendEmail(_to: string, _subject: string, _text: string): Promise<boolean> {
-  void _to; void _subject; void _text;
-  if (!process.env.EMAIL_PROVIDER_API_KEY) return false;
-  // TODO: await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${process.env.EMAIL_PROVIDER_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: process.env.EMAIL_FROM, to: _to, subject: _subject, text: _text }) });
-  return false;
+export async function sendEmail(to: string, subject: string, text: string): Promise<boolean> {
+  const key = process.env.EMAIL_PROVIDER_API_KEY; const from = process.env.EMAIL_FROM;
+  if (!key || !from || !to) return false;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: [to], subject: subject.slice(0, 200), text }),
+    });
+    return r.ok;
+  } catch { return false; }
 }
 
 export async function notifyNewEnquiry(e: { name: string; email: string; company: string; type: string; details: string }) {
