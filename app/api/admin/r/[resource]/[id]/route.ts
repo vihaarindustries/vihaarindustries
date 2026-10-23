@@ -1,8 +1,8 @@
 import { getResource } from '@/lib/admin/resources';
 import { audit, dbError, fail, ok, readJson, requireStaff } from '@/lib/admin/http';
 import { ValidationError, isUuid } from '@/lib/admin/validate';
-import { refreshForResource } from '@/lib/admin/revalidate';
 import { buildPayload, diff, storageRefs } from '@/lib/admin/resource-api';
+import { destroyCloudinaryAsset } from '@/lib/cloudinary';
 
 export const dynamic = 'force-dynamic';
 type Ctx = { params: Promise<{ resource: string; id: string }> | { resource: string; id: string } };
@@ -40,10 +40,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!data) return fail('Not found.', 404);
   // remove files that were replaced
   const oldRefs = storageRefs(def, before as Record<string, unknown>); const newRefs = storageRefs(def, data as Record<string, unknown>);
-  for (const r of oldRefs) if (!newRefs.some((n) => n.bucket === r.bucket && n.path === r.path)) await ctx.supabase.storage.from(r.bucket).remove([r.path]);
+  for (const r of oldRefs) if (!newRefs.some((n) => n.bucket === r.bucket && n.path === r.path)) { if (r.path.startsWith('cld/') || r.path.startsWith('cldauth/')) await destroyCloudinaryAsset(r.path).catch(() => {}); else await ctx.supabase.storage.from(r.bucket).remove([r.path]); }
   const d = diff(before as Record<string, unknown>, patch);
   await audit(ctx, req, 'update', def.key, id, d.before, d.after);
-  refreshForResource(def.key);
   return ok(data);
 }
 
@@ -58,8 +57,7 @@ export async function DELETE(req: Request, { params }: Ctx) {
   if (!before) return fail('Not found.', 404);
   const { error } = await ctx.supabase.from(def.table).delete().eq('id', id);
   if (error) return dbError(error);
-  for (const r of storageRefs(def, before as Record<string, unknown>)) await ctx.supabase.storage.from(r.bucket).remove([r.path]);
+  for (const r of storageRefs(def, before as Record<string, unknown>)) { if (r.path.startsWith('cld/') || r.path.startsWith('cldauth/')) await destroyCloudinaryAsset(r.path).catch(() => {}); else await ctx.supabase.storage.from(r.bucket).remove([r.path]); }
   await audit(ctx, req, 'delete', def.key, id, before, null);
-  refreshForResource(def.key);
   return ok(null);
 }
