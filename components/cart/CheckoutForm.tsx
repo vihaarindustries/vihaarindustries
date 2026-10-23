@@ -1,17 +1,26 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCart } from './CartProvider';
 import { fmtMoney } from '@/lib/format';
 
 const STATES = ['Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'];
 
-export default function CheckoutForm() {
+export default function CheckoutForm({ accountEmail, accountName }: { accountEmail: string; accountName: string }) {
   const { items, ready, subtotal_minor, clear } = useCart(); const router = useRouter();
-  const [f, setF] = useState({ name: '', email: '', phone: '', line1: '', line2: '', city: '', state: 'Gujarat', pincode: '', notes: '', payment: 'cod' });
+  const [f, setF] = useState({ name: accountName, email: accountEmail, phone: '', line1: '', line2: '', city: '', state: 'Gujarat', pincode: '', notes: '', payment: 'cod' });
   const [code, setCode] = useState(''); const [coupon, setCoupon] = useState<{ code: string; discount_minor: number } | null>(null); const [cMsg, setCMsg] = useState('');
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  // Cash on delivery is decided per product by the admin. If any product in the cart is not COD-eligible, COD is hidden.
+  const [cod, setCod] = useState<{ allowed: boolean; blocked: string[] }>({ allowed: true, blocked: [] });
+  const idsKey = items.map((i) => i.id).sort().join(',');
+  useEffect(() => {
+    if (!ready || !idsKey) return;
+    fetch('/api/checkout/options', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: idsKey.split(',') }) })
+      .then((r) => r.json()).then((j) => { const allowed = j.cod_allowed !== false; setCod({ allowed, blocked: Array.isArray(j.blocked) ? j.blocked : [] }); if (!allowed) setF((p) => (p.payment === 'cod' ? { ...p, payment: 'bank_upi' } : p)); })
+      .catch(() => {});
+  }, [ready, idsKey]);
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   // Estimate only. The server recalculates prices, discount and GST from the database when the order is placed.
@@ -38,6 +47,7 @@ export default function CheckoutForm() {
         items: items.map((i) => ({ product_id: i.id, quantity: i.qty })),
       }) });
       const j = await r.json();
+      if (r.status === 401) { window.location.href = '/auth/sign-in?next=/checkout'; return; }
       if (!r.ok) { setErr(j.error || 'We could not place your order. Please try again.'); return; }
       clear(); router.push(`/checkout/success?order=${encodeURIComponent(j.order_number)}`);
     } catch { setErr('Connection problem. Please try again.'); } finally { setBusy(false); }
@@ -52,7 +62,7 @@ export default function CheckoutForm() {
         <section className="bg-white border border-gray-200 rounded-xl p-6 grid sm:grid-cols-2 gap-4"><h2 className="font-black text-lg sm:col-span-2">Your details</h2>
           <label className={L}>Full name<input className="field block mt-2" required maxLength={160} autoComplete="name" value={f.name} onChange={(e) => set('name', e.target.value)} /></label>
           <label className={L}>Phone<input className="field block mt-2" required type="tel" inputMode="tel" minLength={6} maxLength={20} autoComplete="tel" value={f.phone} onChange={(e) => set('phone', e.target.value)} /></label>
-          <label className={`${L} sm:col-span-2`}>Email (order updates are sent here)<input className="field block mt-2" required type="email" maxLength={254} autoComplete="email" value={f.email} onChange={(e) => set('email', e.target.value)} /></label></section>
+          <label className={`${L} sm:col-span-2`}>Email (your account email — order updates are sent here)<input className="field block mt-2 bg-gray-50" required type="email" readOnly value={f.email} /></label></section>
         <section className="bg-white border border-gray-200 rounded-xl p-6 grid sm:grid-cols-2 gap-4"><h2 className="font-black text-lg sm:col-span-2">Delivery address</h2>
           <label className={`${L} sm:col-span-2`}>Address line 1<input className="field block mt-2" required maxLength={200} autoComplete="address-line1" value={f.line1} onChange={(e) => set('line1', e.target.value)} /></label>
           <label className={`${L} sm:col-span-2`}>Address line 2 (optional)<input className="field block mt-2" maxLength={200} autoComplete="address-line2" value={f.line2} onChange={(e) => set('line2', e.target.value)} /></label>
@@ -61,7 +71,8 @@ export default function CheckoutForm() {
           <label className={`${L} sm:col-span-2`}>State<select className="field block mt-2" required value={f.state} onChange={(e) => set('state', e.target.value)}>{STATES.map((s) => <option key={s}>{s}</option>)}</select></label>
           <p className="text-xs muted sm:col-span-2">We currently deliver within India. For export orders please use the Business portal.</p></section>
         <section className="bg-white border border-gray-200 rounded-xl p-6 space-y-3"><h2 className="font-black text-lg">Payment</h2>
-          {[['cod', 'Pay on delivery', 'Pay when your order arrives.'], ['bank_upi', 'UPI / bank transfer', 'We will send you the payment details after you place the order.']].map(([v, t, d]) => <label key={v} className={`flex gap-3 items-start border rounded-lg p-4 cursor-pointer ${f.payment === v ? 'border-[#00994d] bg-[#f1faf5]' : 'border-gray-200'}`}><input type="radio" name="payment" className="mt-1 accent-[#00994d]" checked={f.payment === v} onChange={() => set('payment', v)} /><span><b className="block text-sm">{t}</b><span className="text-xs muted">{d}</span></span></label>)}
+          {cod.allowed ? null : <p className="text-xs text-amber-900 bg-amber-50 rounded-lg px-3 py-2" role="status">Pay on delivery is not available for {cod.blocked.join(', ') || 'one of the products in your cart'}. Please pay by UPI / bank transfer.</p>}
+          {[['cod', 'Pay on delivery', 'Pay when your order arrives.'], ['bank_upi', 'UPI / bank transfer', 'We will send you the payment details after your order is accepted.']].filter(([v]) => v !== 'cod' || cod.allowed).map(([v, t, d]) => <label key={v} className={`flex gap-3 items-start border rounded-lg p-4 cursor-pointer ${f.payment === v ? 'border-[#00994d] bg-[#f1faf5]' : 'border-gray-200'}`}><input type="radio" name="payment" className="mt-1 accent-[#00994d]" checked={f.payment === v} onChange={() => set('payment', v)} /><span><b className="block text-sm">{t}</b><span className="text-xs muted">{d}</span></span></label>)}
           <label className={`${L} block pt-2`}>Order notes (optional)<textarea className="field block mt-2" rows={2} maxLength={500} value={f.notes} onChange={(e) => set('notes', e.target.value)} /></label></section>
       </div>
       <aside className="bg-white border border-gray-200 rounded-xl p-6 lg:sticky lg:top-24"><h2 className="font-black text-lg">Order summary</h2>
