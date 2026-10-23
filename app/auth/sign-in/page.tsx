@@ -30,8 +30,10 @@ function SignInContent() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      // one message for every failure, so the form never reveals which emails have accounts
-      setMessage('Incorrect email or password.');
+      // Supabase only reports "not confirmed" when the password was correct, so this does not reveal who has an account.
+      if (error.code === 'email_not_confirmed') setMessage('Please confirm your email first. Open the link we sent you, then sign in.');
+      // one message for every other failure: wrong password and "no such account" look the same
+      else setMessage('Incorrect email or password. If you do not have an account yet, create one first.');
       setBusy(false);
       return;
     }
@@ -46,8 +48,13 @@ function SignInContent() {
       </a>
       <h1 className="text-3xl font-black mt-8">Sign in</h1>
       <p className="muted mt-2">
-        Access your customer account or authorised admin workspace.
+        Sign in to your existing account to place and track orders.
       </p>
+      {params.get('next')?.startsWith('/checkout') && (
+        <p role="status" className="mt-4 text-sm bg-amber-50 text-amber-900 rounded-lg px-4 py-3">
+          Please sign in to place your order. Your cart is saved.
+        </p>
+      )}
 
       {(params.get('idle') || params.get('expired') || params.get('signed_out')) && (
         <p role="status" className="mt-4 text-sm bg-[#e3f4e9] text-[#006b38] rounded-lg px-4 py-3">
@@ -92,9 +99,9 @@ function SignInContent() {
         )}
       </form>
 
-      <p className="text-xs muted mt-4">
-        Account registration, email verification and password reset should be
-        configured in Supabase before launch.
+      <p className="text-sm mt-6">
+        New here?{' '}
+        <a href={`/auth/sign-up${params.get('next') ? `?next=${encodeURIComponent(safeNext(params.get('next')))}` : ''}`} className="font-bold underline">Create an account</a>
       </p>
     </main>
   );
