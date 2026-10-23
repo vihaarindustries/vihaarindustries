@@ -4,7 +4,7 @@ import { Plus, Trash2, Upload, FileText } from 'lucide-react';
 import { Btn, Input, Label, Select, Textarea, cx } from './ui';
 import { api } from '@/lib/admin/client';
 import { createBrowser } from '@/lib/supabase/browser';
-import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES, publicMediaUrl } from '@/lib/media';
+import { ALLOWED_IMAGE_TYPES, MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, publicMediaUrl } from '@/lib/media';
 import { slugify } from '@/lib/format';
 import type { FieldDef } from '@/lib/admin/resources';
 import type { FormValue, FormValues, KvRow } from '@/lib/admin/form';
@@ -26,33 +26,58 @@ export const clearRefCache = (resource?: string) => (resource ? refCache.delete(
 function Upload_({ f, value, onChange, track }: { f: FieldDef; value: string; onChange: (v: string) => void; track?: (bucket: string, path: string) => void }) {
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const isFile = f.type === 'file'; const bucket = f.bucket!;
-  const accept = isFile ? 'application/pdf,image/jpeg,image/png' : ALLOWED_IMAGE_TYPES.join(',');
+  const accept = isFile ? 'application/pdf' : ALLOWED_IMAGE_TYPES.join(',');
   async function pick(file: File | undefined) {
     if (!file) return; setErr('');
-    const okTypes = isFile ? [...ALLOWED_IMAGE_TYPES, 'application/pdf'] : ALLOWED_IMAGE_TYPES;
-    if (!okTypes.includes(file.type)) return setErr(isFile ? 'Use a PDF, JPG or PNG file.' : 'Use a JPG, PNG or WebP image.');
-    if (file.size > (isFile ? 10 : 5) * 1024 * 1024 || (!isFile && file.size > MAX_IMAGE_BYTES)) return setErr(`File is too large (max ${isFile ? 10 : 5} MB).`);
+    const okTypes = isFile ? ['application/pdf'] : ALLOWED_IMAGE_TYPES;
+    if (!okTypes.includes(file.type)) return setErr(isFile ? 'Use a PDF document.' : 'Use a JPG, PNG or WebP image.');
+    const maxBytes = isFile ? MAX_DOCUMENT_BYTES : MAX_IMAGE_BYTES;
+    if (file.size > maxBytes) return setErr(`File is too large (max ${isFile ? '10' : '5'} MB).`);
     setBusy(true);
-    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' }[file.type] as string;
-    const path = `${new Date().getFullYear()}/${crypto.randomUUID()}.${ext}`;
-    const { error } = await createBrowser().storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false, cacheControl: '31536000' });
-    setBusy(false);
-    if (error) return setErr('Upload failed. Please try again.');
-    track?.(bucket, path); onChange(path);
+    try {
+      const signed = await fetch('/api/cloudinary/signature', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: isFile ? 'document' : 'image', contentType: file.type, fileName: file.name, bucket }),
+        cache: 'no-store',
+      });
+      const auth = await signed.json();
+      if (!signed.ok) throw new Error(auth.error || 'Could not prepare secure upload.');
+      const form = new FormData();
+      form.append('file', file); form.append('api_key', auth.apiKey); form.append('timestamp', auth.timestamp);
+      form.append('public_id', auth.public_id); form.append('type', auth.type); form.append('signature', auth.signature);
+      const uploaded = await fetch(`https://api.cloudinary.com/v1_1/${auth.cloudName}/${auth.resourceType}/upload`, { method: 'POST', body: form });
+      const asset = await uploaded.json();
+      if (!uploaded.ok || !asset.public_id) throw new Error(asset.error?.message || 'Cloudinary upload failed.');
+      const storedRef = `${auth.prefix}${asset.public_id}`;
+      track?.(bucket, storedRef); onChange(storedRef);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Upload failed. Please try again.');
+    } finally { setBusy(false); }
   }
   const preview = !isFile ? publicMediaUrl(bucket as 'product-media' | 'site-media', value) : null;
   async function openPrivate() {
-    const { data } = await createBrowser().storage.from(bucket).createSignedUrl(value, 120);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener');
+    try {
+      if (!value.startsWith('cldauth/')) {
+        const { data } = await createBrowser().storage.from(bucket).createSignedUrl(value, 120);
+        if (data?.signedUrl) { window.open(data.signedUrl, '_blank', 'noopener,noreferrer'); return; }
+        throw new Error('Could not open document.');
+      }
+      const response = await fetch('/api/cloudinary/private-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicId: value }), cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok || !result.url) throw new Error(result.error || 'Could not open document.');
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not open document.'); }
   }
+  function remove() { onChange(''); }
+
   return <div className="mt-1.5">
     <div className="flex items-center gap-3">
       {preview ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={preview} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" /> : value ? <FileText className="text-gray-500" /> : null}
       <label className={cx('inline-flex items-center gap-2 text-sm font-bold border border-gray-300 rounded-md px-3 py-2 cursor-pointer hover:bg-gray-50', busy && 'opacity-50 pointer-events-none')}>
         <Upload size={14} />{busy ? 'Uploading…' : value ? 'Replace' : 'Choose file'}
-        <input type="file" accept={accept} className="sr-only" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} /></label>
+        <input type="file" accept={accept} className="sr-only" disabled={busy} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} /></label>
       {value && isFile && <button type="button" onClick={openPrivate} className="text-sm font-bold text-vihaar-deep underline">View</button>}
-      {value && !f.required && <button type="button" onClick={() => onChange('')} className="text-xs text-red-600 underline">Remove</button>}
+      {value && !f.required && <button type="button" onClick={remove} className="text-xs text-red-600 underline">Remove</button>}
     </div>
     {err && <div className="text-xs text-red-600 mt-1.5" role="alert">{err}</div>}
   </div>;
