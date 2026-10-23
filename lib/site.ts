@@ -4,22 +4,11 @@ import { createPublicClient } from '@/lib/supabase/public';
 import { DEFAULT_BUSINESS, type BusinessProfile } from '@/lib/business';
 import { publicMediaUrl } from '@/lib/media';
 
-export type NavItem = { key: string; label: string; href: string; visible: boolean };
-export type NavSettings = { items: NavItem[]; show_switch: boolean; show_signin: boolean };
+import { DEFAULT_NAV, type NavItem, type NavSettings } from '@/lib/nav';
+export { DEFAULT_NAV };
+export type { NavItem, NavSettings };
 export type Mode = 'retail' | 'business';
 export const MODE_COOKIE = 'vi_mode';
-
-/** Used until the team saves their own menu, and whenever the database cannot be reached. */
-export const DEFAULT_NAV: NavSettings = {
-  items: [
-    { key: 'products', label: 'Products', href: '/retail#products', visible: true },
-    { key: 'capabilities', label: 'Capabilities', href: '/retail#capabilities', visible: true },
-    { key: 'quality', label: 'Quality & Certifications', href: '/retail#quality', visible: true },
-    { key: 'business', label: 'Business buyers', href: '/business', visible: true },
-    { key: 'track', label: 'Track order', href: '/track', visible: true },
-  ],
-  show_switch: true, show_signin: true,
-};
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
   try {
