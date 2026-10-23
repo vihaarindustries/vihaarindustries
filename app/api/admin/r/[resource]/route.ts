@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getResource } from '@/lib/admin/resources';
 import { audit, dbError, fail, ok, readJson, requireStaff } from '@/lib/admin/http';
 import { ValidationError, isUuid } from '@/lib/admin/validate';
+import { refreshForResource } from '@/lib/admin/revalidate';
 import { allowedFilters, buildPayload, cleanSearch, diff, parsePaging, toCsv } from '@/lib/admin/resource-api';
 
 export const dynamic = 'force-dynamic';
@@ -60,5 +61,6 @@ export async function POST(req: Request, { params }: Ctx) {
   const { data, error } = await ctx.supabase.from(def.table).insert(row).select().single();
   if (error) return dbError(error);
   await audit(ctx, req, 'create', def.key, (data as { id?: string }).id ?? null, null, diff(null, row).after);
+  refreshForResource(def.key);   // the website shows the new item straight away
   return ok(data, 201);
 }
