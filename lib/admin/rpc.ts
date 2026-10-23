@@ -27,6 +27,8 @@ export const RPC: Record<string, RpcDef> = {
   set_order_status: { roles: OPS, mutating: true, params: {
     p_order: uuid, p_new: { t: 'str', oneOf: ['draft', 'pending_payment', 'confirmed', 'processing', 'packed', 'shipped', 'delivered', 'cancelled', 'refunded'] },
     p_note: text(500), p_visible: { t: 'bool', optional: true } } },
+  ship_order: { roles: OPS, mutating: true, params: {
+    p_order: uuid, p_courier: text(60, false, 1), p_tracking: text(80, false, 1), p_tracking_url: text(300), p_expected: odate, p_note: text(500) } },
   record_payment: { roles: OPS_FIN, mutating: true, params: {
     p_order: uuid, p_amount_minor: { t: 'int', min: 1, max: 1e11 }, p_method: { t: 'str', oneOf: PAYMENT_METHODS }, p_reference: text(80), p_received_on: odate } },
   update_order_details: { roles: OPS, mutating: true, params: { p_order: uuid, p_patch: { t: 'obj', maxBytes: 6000 } } },
