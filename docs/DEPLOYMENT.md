@@ -1,3 +1,4 @@
+[DEPLOYMENT.md](https://github.com/user-attachments/files/33856501/DEPLOYMENT.md)
 [DEPLOYMENT.md](https://github.com/user-attachments/files/33708029/DEPLOYMENT.md)
 # Vihaar Industries — deployment guide
 
@@ -71,3 +72,18 @@ In the SQL editor: `update public.security_settings set value = 'false' where ke
 
 ### Security model in one paragraph
 Every table has Row Level Security; staff access is per role and requires MFA at the database level, so even a leaked password or stolen token cannot read data through the public API. All writes to orders, stock, money and settings go through audited database functions. Coupon codes, customer data and chatbot facts are private. The audit log is append-only. The control room path is hidden behind a secret entry link, responses are never cached, security headers/CSP are set, public forms are rate-limited and origin-checked, and idle sessions sign out.
+
+
+## Cloudinary media storage
+
+The admin image/document fields now upload directly from the browser to Cloudinary using a short-lived signed upload authorization issued by the Next.js server. The Cloudinary API secret stays server-side. Product/site images are delivered as public images; PDF certificate/source documents are uploaded as authenticated raw assets and opened using a signed delivery URL after the staff role check.
+
+Set these environment variables in Vercel (Project → Settings → Environment Variables) and in `.env.local` for local development:
+
+- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` — Cloud Name from Cloudinary Console → Settings → API Keys.
+- `NEXT_PUBLIC_CLOUDINARY_API_KEY` — API Key from the same page. This is a public identifier, not the secret.
+- `CLOUDINARY_API_SECRET` — API Secret from the same page. Server-only; never prefix it with `NEXT_PUBLIC_`, commit it, or share it.
+
+After saving Vercel variables, redeploy the project. No Supabase SQL migration is needed: Cloudinary public IDs are stored in the existing `product_media.storage_path`, `certificates.image_path`, and `certificates.storage_path` text columns. New uploads use `cld/` for public images and `cldauth/` for authenticated PDFs. Existing references still resolve from Supabase Storage until each old asset is re-uploaded or migrated.
+
+Cloudinary folder layout: `vihaar/products`, `vihaar/site-media`, and `vihaar/private-documents`. The private-document delivery URL is signed, but anyone who receives that full URL may be able to open it; do not treat a copied signed URL as a permanent per-user permission check.
