@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getMode, getNav, type Mode } from '@/lib/site';
 import Logo from '@/components/site/Logo';
 import CartButton from '@/components/cart/CartButton';
+import MobileNav from '@/components/site/MobileNav';
 
 /**
  * One header for the whole public site. The visitor already chose Retail or Business on the first page, so there is no
@@ -23,6 +24,7 @@ export default async function Header({ mode: given }: { mode?: Mode }) {
     <div className="flex items-center gap-2">
       {nav.show_signin && <Link href="/account" className="navlink hidden lg:block">Sign in</Link>}
       {mode === 'retail' ? <CartButton /> : <Link href="/enquiry" className="btn !px-3 !py-2 md:!px-4 md:!py-3">Request quote <span>↗</span></Link>}
+      <MobileNav items={items.map(({ key, label, href }) => ({ key, label, href }))} showSignin={nav.show_signin} />
     </div>
   </div></header>;
 }
