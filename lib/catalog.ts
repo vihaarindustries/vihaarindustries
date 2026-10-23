@@ -33,3 +33,16 @@ export async function loadCatalog() {
 export function sectionOrder(sections: Sec[], defaults: string[]) {
   return sections.length ? [...sections].sort((a, b) => a.sort_order - b.sort_order).map((x) => x.section_key).filter((k) => defaults.includes(k)) : defaults;
 }
+
+/** One product with everything the product page shows (long description, ingredients, all photos). Only published products are returned. */
+export type DbProductDetail = DbProduct & { description: string | null; ingredients: string | null; shelf_life_days: number | null };
+export async function loadProduct(slug: string): Promise<DbProductDetail | null> {
+  const sb = createPublicClient();
+  if (!sb || !/^[a-z0-9-]{1,80}$/.test(slug)) return null;
+  try {
+    const { data } = await sb.from('products')
+      .select('id, name, slug, sku, short_description, description, ingredients, shelf_life_days, unit, retail_price_minor, discount_type, discount_value, discount_starts_at, discount_ends_at, tax_rate, min_order_quantity, origin, specifications, is_featured, is_retail_available, is_export_available, product_categories(name), product_media(storage_path, alt_text, is_primary, sort_order)')
+      .eq('slug', slug).eq('is_active', true).maybeSingle();
+    return (data as unknown as DbProductDetail) ?? null;
+  } catch { return null; }
+}
