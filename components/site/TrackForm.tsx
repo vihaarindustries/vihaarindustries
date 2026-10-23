@@ -2,8 +2,11 @@
 import { useState } from 'react';
 
 type Res = { order: { order_number: string; status: string; payment_status: string; placed_at: string; shipped_at: string | null; delivered_at: string | null; expected_delivery: string | null; courier_provider: string | null; courier_reference: string | null; tracking_url: string | null }; events: { event_type: string; to_status: string | null; message: string | null; created_at: string }[] };
-const STEPS = ['confirmed', 'processing', 'packed', 'shipped', 'delivered'];
-const nice = (s: string) => s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+// Customers see four simple stages: Placed -> Accepted -> Shipped -> Delivered. "pending_payment" is the first stage's database name.
+const STEPS = ['pending_payment', 'confirmed', 'shipped', 'delivered'];
+const NAMES: Record<string, string> = { pending_payment: 'Placed', draft: 'Placed', confirmed: 'Accepted', processing: 'Accepted', packed: 'Accepted', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', refunded: 'Refunded' };
+const stepOf = (st: string) => (st === 'processing' || st === 'packed' ? 'confirmed' : st === 'draft' ? 'pending_payment' : st);
+const nice = (s: string) => NAMES[s] ?? s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 const d = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
 export default function TrackForm() {
@@ -15,7 +18,7 @@ export default function TrackForm() {
       const j = await r.json(); if (!r.ok) setErr(j.error || 'Something went wrong.'); else setRes(j);
     } catch { setErr('Connection problem. Please try again.'); } finally { setBusy(false); }
   }
-  const idx = res ? STEPS.indexOf(res.order.status) : -1;
+  const idx = res ? STEPS.indexOf(stepOf(res.order.status)) : -1;
   return <div className="container max-w-xl py-14">
     <h1 className="text-3xl font-black">Track your order</h1>
     <p className="muted mt-2">Enter the order number from your confirmation and the email address used for the order.</p>
