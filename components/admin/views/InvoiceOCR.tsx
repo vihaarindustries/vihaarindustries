@@ -68,59 +68,96 @@ async function sha256(blob: Blob): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 function parseInvoice(text: string) {
-  const clean = text.replace(/[\u00a0\u2007\u202f]/g, ' ').replace(/\r/g, ' ');
-  const lines = clean.split(/\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  // Keep OCR rows intact: invoice layouts frequently put headings and values on adjacent columns.
+  const clean = text.replace(/[\u00a0\u2007\u202f]/g, ' ').replace(/\r/g, '\n');
+  const lines = clean.split(/\n/).map((x) => x.replace(/[|¦]+/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
   const all = lines.join('\n');
-  // Invoice identifiers may appear on the line after their heading in OCR output.
+  const normal = (s: string) => s.replace(/[,₹]/g, '').trim();
+  const parseDate = (raw: string) => {
+    const value = raw.trim().replace(/,/g, '').replace(/\s+/g, '-');
+    let m = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    m = value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+    if (m) {
+      const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]);
+      if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12) return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    m = value.match(/^(\d{1,2})-(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*-?(\d{2,4})$/i);
+    if (m) {
+      const months: Record<string, string> = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', sept: '09', oct: '10', nov: '11', dec: '12' };
+      const y = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]);
+      return `${y}-${months[m[2].toLowerCase()]}-${m[1].padStart(2, '0')}`;
+    }
+    return '';
+  };
+  // First try a label and nearby value; this avoids accidentally treating a date or heading as the number.
   let invoiceNo = '';
-  const directNo = all.match(/(?:invoice\s*(?:no\.?|number|#)|bill\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/]{1,39})/i);
-  if (directNo && !/^(?:dated|date|mode|terms|payment|delivery|invoice|bill)$/i.test(directNo[1])) invoiceNo = directNo[1];
+  const noLabels = /(?:invoice\s*(?:no\.?|number|#)|bill\s*(?:no\.?|number|#)|document\s*no\.?)/i;
+  for (let i = 0; i < lines.length && !invoiceNo; i++) {
+    if (!noLabels.test(lines[i])) continue;
+    const tail = lines[i].split(noLabels).slice(1).join(' ').replace(/^\s*[:#=-]?\s*/, ' ');
+    const candidates = [tail, ...lines.slice(i, i + 3)].join(' ');
+    const found = candidates.match(/\b([A-Z]{1,8}[-/]\d{1,12}(?:[-/]\d{1,8})?|[A-Z]{1,5}\d{1,12})\b/i);
+    if (found && !/^(?:GST|HSN|SAC|NO)$/i.test(found[1])) invoiceNo = found[1];
+  }
+  // Common Tally layouts: “Invoice No. Dated” in the heading row, then “DO-18 13-Sep-26”.
   if (!invoiceNo) {
-    const heading = lines.findIndex(x => /invoice\s*no\.?|bill\s*no\.?/i.test(x));
-    for (const candidate of lines.slice(Math.max(0, heading), Math.max(0, heading) + 4)) {
-      const m = candidate.match(/\b([A-Z]{1,5}[-/]?\d{1,12}(?:[-/]\d{1,8})?)\b/i);
-      if (m && !/^(?:NO|GST|HSN|SAC)$/i.test(m[1])) { invoiceNo = m[1]; break; }
+    const datedAt = lines.findIndex((x) => /\bdated\b/i.test(x));
+    for (const row of lines.slice(Math.max(0, datedAt), Math.max(0, datedAt) + 3)) {
+      const found = row.match(/\b([A-Z]{1,8}[-/]\d{1,12}(?:[-/]\d{1,8})?|[A-Z]{1,5}\d{1,12})\b/i);
+      if (found && !/^(?:GST|HSN|SAC|NO)$/i.test(found[1])) { invoiceNo = found[1]; break; }
     }
   }
-  let rawDate = '';
+  let invoiceDate = '';
   const datePatterns = [
-    /(?:invoice\s*date|bill\s*date|dated|date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|\d{1,2}[- ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[- ,]?\d{2,4}|\d{4}-\d{2}-\d{2})/i,
+    /(?:invoice\s*date|bill\s*date|dated|date)\s*[:#=-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|\d{1,2}[- ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[- ,]?\d{2,4}|\d{4}-\d{2}-\d{2})/i,
     /\b(\d{1,2}[- ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[- ,]?\d{2,4})\b/i,
   ];
-  for (const re of datePatterns) { const m = all.match(re); if (m) { rawDate = m[1].replace(/\s+/g, '-'); break; } }
-  let invoiceDate = '';
-  if (rawDate) {
-    let m = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (m) invoiceDate = `${m[1]}-${m[2]}-${m[3]}`;
-    else if ((m = rawDate.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/))) {
-      const d = +m[1], mo = +m[2], yr = +m[3] < 100 ? 2000 + +m[3] : +m[3];
-      if (d <= 31 && mo <= 12) invoiceDate = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    } else if ((m = rawDate.match(/^(\d{1,2})-(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*-?(\d{2,4})$/i))) {
-      const months: Record<string,string> = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',sept:'09',oct:'10',nov:'11',dec:'12'};
-      const yr = +m[3] < 100 ? 2000 + +m[3] : +m[3];
-      invoiceDate = `${yr}-${months[m[2].toLowerCase()]}-${m[1].padStart(2,'0')}`;
-    }
-  }
-  // Prefer a labeled total, but allow the total line to put the value before/after its label.
+  for (const re of datePatterns) { const m = all.match(re); if (m) { invoiceDate = parseDate(m[1]); if (invoiceDate) break; } }
+
+  // Totals are ambiguous in OCR, so prefer explicit “Amount Chargeable”/“Total” rows over currency mentions.
   let invoiceTotal = '';
-  const totalMatch = all.match(/(?:grand\s*total|invoice\s*total|net\s*payable|amount\s*payable|total\s*amount|total\s*due|total)\s*[:=| -]*\s*(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)/i)
-    || all.match(/(?:₹|rs\.?|inr)\s*([0-9][0-9,]*(?:\.\d{1,2})?)/i);
-  if (totalMatch) invoiceTotal = totalMatch[1].replace(/,/g, '');
-  // For Tally-style Indian bills, the issuer usually appears in the first non-heading line.
-  const excludedSupplierLine = /^(?:bill\s+of\s+supply|tax\s+invoice|invoice|original|duplicate|triplicate|supplier|seller|buyer|consignee|ship\s+to|bill\s+to)\b|invoice\s*(?:no|date|number)|gstin|gst\s*no|phone|mobile|email|www\.|@|^dated\b/i;
-  const supplierCandidates = lines.slice(0, 15).map(x => x.split(/\s+(?:invoice\s*(?:no\.?|number|#)|dated)\b/i)[0].trim()).filter(Boolean);
-  const supplierName = supplierCandidates.find(x => x.length >= 3 && x.length <= 120 && !excludedSupplierLine.test(x) && !/^\d/.test(x) && !/^(?:bill\s+of\s+supply|state|place|date|page|customer|buyer|details|mode|terms|delivery)\b/i.test(x)) ?? ''; 
-  const itemLines: Array<{description:string; quantity:string; cost:string; tax:string; categoryName:string}> = [];
+  const totalLabels = /(?:grand\s*total|invoice\s*total|net\s*payable|amount\s*payable|total\s*amount|total\s*due|amount\s*chargeable(?:\s*\(.*?\))?|\btotal\b)/i;
+  for (const row of [...lines].reverse()) {
+    if (!totalLabels.test(row) || /taxable\s*value|hsn|sac|amount\s*in\s*words/i.test(row)) continue;
+    const nums = row.match(/\d[\d,]*(?:\.\d{1,2})?/g) ?? [];
+    if (nums.length) { const candidate = nums[nums.length - 1].replace(/,/g, ''); if (Number(candidate) >= 0) { invoiceTotal = candidate; break; } }
+  }
+
+  // Supplier usually appears near the top, before the “Buyer/Bill to” section. Remove adjacent headings.
+  const buyerAt = lines.findIndex((x) => /^(?:buyer|bill\s*to|consignee|ship\s*to)\b/i.test(x));
+  const headerLines = lines.slice(0, buyerAt >= 0 ? buyerAt : Math.min(lines.length, 18));
+  const excludedSupplier = /^(?:bill\s+of\s+supply|tax\s+invoice|invoice|original|duplicate|triplicate|supplier|seller|buyer|consignee|ship\s+to|bill\s+to|invoice\s*no|dated|date|mode|terms|delivery|gstin|gst\s*no|state\s*name|e-?mail|phone|mobile|www\.)\b/i;
+  const supplierName = headerLines.map((row) => row.replace(/\s+(?:invoice\s*(?:no\.?|number|#)|dated)\b.*$/i, '').trim())
+    .find((row) => row.length >= 3 && row.length <= 120 && !excludedSupplier.test(row) && !/^\d/.test(row) && !/@/.test(row) && !/\b(?:gstin|state\s*name|code\s*:\s*\d{2})\b/i.test(row)) ?? '';
+
+  const itemLines: Array<{ description: string; quantity: string; cost: string; tax: string; categoryName: string }> = [];
+  const skip = /^(?:subtotal|sub\s*total|grand\s*total|total|cgst|sgst|igst|tax|round\s*off|amount\s*in\s*words|bank\s*details|terms|invoice\s*no|date|hsn|sac|gstin|taxable\s*value|discount|freight|shipping|payment\s*terms|due\s*date|company's\s*bank|declaration)\b/i;
   const seen = new Set<string>();
-  for (const raw of lines) {
-    if (itemLines.length >= 60 || /^(?:subtotal|sub\s*total|grand\s*total|total|cgst|sgst|igst|tax|round\s*off|amount\s*in\s*words|bank\s*details|terms|invoice\s*no|date|hsn|sac|gstin|taxable\s*value|discount|freight|shipping|payment\s*terms|due\s*date)\b/i.test(raw)) continue;
-    // OCR may place HSN between description and quantity, and may put unit labels between numeric columns.
-    const m = raw.match(/^(.*?)\s+(?:\d{4,8}\s+)?([0-9][0-9,]*(?:\.\d{1,4})?)\s*(?:kg|kgs|g|gm|gms|pcs|nos|box|boxes|mt|tonne|ltr|litre|unit|units)?\s+(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:kg|kgs|g|gm|gms|pcs|nos|box|boxes|mt|tonne|ltr|litre|unit|units)?\s+(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*$/i);
-    if (!m || /(invoice|grand\s*total|subtotal|taxable|cgst|sgst|igst|gst|phone|mobile|pin\s*code|balance|round\s*off|amount\s*chargeable)/i.test(m[1])) continue;
-    const description = m[1].replace(/^\s*(?:\d{1,3}[.)]?\s+)/, '').replace(/\s+(?:hsn|sac)?\s*\d{4,8}\s*$/i, '').trim();
-    const quantity = m[2].replace(/,/g, ''); const cost = m[3].replace(/,/g, '');
+  for (const row of lines) {
+    if (skip.test(row) || itemLines.length >= 60) continue;
+    // Remove table serial number; HSN can be embedded between the description and quantity.
+    let candidate = row.replace(/^\s*\d{1,3}[.)]?\s+/, '').trim();
+    if (!/\b(?:kg|kgs|g|gm|gms|pcs|nos|box|boxes|mt|tonne|ltr|litre|unit|units)\b/i.test(candidate)) continue;
+    const nums = [...candidate.matchAll(/\d[\d,]*(?:\.\d{1,4})?/g)];
+    if (nums.length < 3) continue;
+    // Find the last three numeric values as quantity, rate, amount; ignore a preceding 4-8 digit HSN.
+    let qIndex = nums.length - 3;
+    if (nums[qIndex] && /^\d{4,8}$/.test(nums[qIndex][0].replace(/,/g, '')) && nums.length >= 4) qIndex++;
+    const q = nums[qIndex], rate = nums[qIndex + 1], amount = nums[qIndex + 2];
+    if (!q || !rate || !amount) continue;
+    const quantity = normal(q[0]); const cost = normal(rate[0]);
+    const prefix = candidate.slice(0, q.index).trim().replace(/\b\d{4,8}\b/g, '').replace(/\s+/g, ' ').trim();
+    const description = prefix.replace(/\s+(?:₹|rs\.?|inr)$/i, '').trim();
     if (!description || description.length > 120 || Number(quantity) <= 0 || Number(cost) < 0) continue;
-    const key = `${description.toLowerCase()}|${quantity}|${cost}`; if (seen.has(key)) continue; seen.add(key);
+    if (/\b(?:invoice|total|taxable|cgst|sgst|igst|gst|phone|mobile|balance|round\s*off|amount\s*chargeable|bank)\b/i.test(description)) continue;
+    // Arithmetic is a confidence hint only. If rate × quantity matches the final numeric column, retain the line.
+    const lineAmount = Number(normal(amount[0]));
+    const computed = Number(quantity) * Number(cost);
+    if (!Number.isFinite(lineAmount) || lineAmount < 0 || Math.abs(computed - lineAmount) > Math.max(2, lineAmount * 0.03)) continue;
+    const key = `${description.toLowerCase()}|${quantity}|${cost}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     itemLines.push({ description, quantity, cost, tax: '0', categoryName: 'Imported Items' });
   }
   return { invoiceNo, invoiceDate, invoiceTotal, supplierName, itemLines };
