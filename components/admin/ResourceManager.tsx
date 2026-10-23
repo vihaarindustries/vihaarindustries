@@ -145,7 +145,7 @@ function EditModal({ def, resource, row, canEdit, defaults, extraTab, onClose, o
     return next;
   });
   async function close() {   // remove files that were uploaded but never saved
-    if (!saved.current && uploaded.current.length) { const sb = createBrowser(); for (const u of uploaded.current) await sb.storage.from(u.bucket).remove([u.path]).catch(() => {}); }
+    if (!saved.current && uploaded.current.length) { for (const u of uploaded.current) { if (u.path.startsWith('cld/') || u.path.startsWith('cldauth/')) await fetch('/api/cloudinary/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicId: u.path }) }).catch(() => {}); else { const sb = createBrowser(); await sb.storage.from(u.bucket).remove([u.path]).catch(() => {}); } } }
     onClose();
   }
   async function save() {
@@ -155,6 +155,8 @@ function EditModal({ def, resource, row, canEdit, defaults, extraTab, onClose, o
       if (!row) Object.assign(payload, Object.fromEntries(Object.entries(defaults).filter(([k]) => def.fields.some((f) => f.name === k))));
       if (row && !Object.keys(payload).length) { saved.current = true; return onSaved('No changes to save.'); }
       if (row) await api(`/api/admin/r/${resource}/${row.id}`, { method: 'PATCH', body: payload }); else await api(`/api/admin/r/${resource}`, { method: 'POST', body: payload });
+      const keptRefs = new Set(Object.values(payload).filter((v): v is string => typeof v === 'string'));
+      for (const u of uploaded.current) if (!keptRefs.has(u.path) && (u.path.startsWith('cld/') || u.path.startsWith('cldauth/'))) await fetch('/api/cloudinary/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicId: u.path }) }).catch(() => {});
       saved.current = true; onSaved(row ? 'Changes saved.' : `${def.singular[0].toUpperCase() + def.singular.slice(1)} added.`);
     } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
   }
