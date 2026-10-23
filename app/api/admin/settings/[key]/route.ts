@@ -1,6 +1,7 @@
 import { audit, dbError, fail, ok, readJson, requireStaff } from '@/lib/admin/http';
 import { ValidationError, check, type Schema } from '@/lib/admin/validate';
 import type { StaffRole } from '@/lib/admin/permissions';
+import { refreshForSetting } from '@/lib/admin/revalidate';
 import { MARKETPLACES, SOCIAL_PLATFORMS } from '@/lib/business';
 
 export const dynamic = 'force-dynamic';
@@ -68,5 +69,6 @@ export async function PUT(req: Request, { params }: Ctx) {
   const { error } = await g.ctx.supabase.from('site_settings').upsert({ key, value, is_public: PUBLIC_KEYS.has(key), updated_by: g.ctx.user.id }, { onConflict: 'key' });
   if (error) return dbError(error);
   await audit(g.ctx, req, 'update', 'settings', key, before?.value ?? null, value);
+  refreshForSetting(key);   // menu, business details and chatbot appear on the website immediately
   return ok(value);
 }
