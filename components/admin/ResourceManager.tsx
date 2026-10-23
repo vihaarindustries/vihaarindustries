@@ -27,7 +27,7 @@ function Cell({ c, row }: { c: ColumnDef; row: Row }) {
     case 'bool': return v ? <Check size={16} className="text-[#008b47]" aria-label="Yes" /> : <span className="text-gray-300" aria-label="No">—</span>;
     case 'date': return <>{fmtDate(String(v))}</>;
     case 'datetime': return <>{fmtDateTime(String(v))}</>;
-    case 'badge': return <Badge tone={c.badges?.[String(v)] ?? 'gray'}>{String(v).replace(/_/g, ' ')}</Badge>;
+    case 'badge': return <Badge tone={c.badges?.[String(v)] ?? 'gray'}>{c.labels?.[String(v)] ?? String(v).replace(/_/g, ' ')}</Badge>;
     case 'image': { const u = publicMediaUrl((c.bucket ?? 'product-media') as 'product-media' | 'site-media', String(v)); /* eslint-disable-next-line @next/next/no-img-element */ return u ? <img src={u} alt="" className="w-10 h-10 rounded object-cover border border-gray-200" /> : null; }
     default: return <>{Array.isArray(v) ? v.join(', ') : String(v)}</>;
   }
