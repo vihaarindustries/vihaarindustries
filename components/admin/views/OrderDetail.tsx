@@ -5,19 +5,23 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import { Alert, Badge, Btn, Card, Input, Label, Modal, Select, Spinner, Table, Td, Textarea, Th, useFlash } from '../ui';
 import { useRole } from '../role';
 import { api, rpc, errMsg } from '@/lib/admin/client';
-import { ORDER_STATUS_BADGES } from '@/lib/admin/resources';
+import { ORDER_STATUS_BADGES, ORDER_STATUS_LABELS } from '@/lib/admin/resources';
 import { fmtDate, fmtDateTime, fmtMoney, fmtNum, titleCase } from '@/lib/format';
 
 type Item = { id: string; product_name_snapshot: string; sku_snapshot: string | null; quantity: number; unit_price_minor: number; discount_minor: number; tax_rate: number; tax_minor: number; line_total_minor: number };
 type Ev = { id: string; event_type: string; from_status: string | null; to_status: string | null; message: string | null; is_customer_visible: boolean; created_at: string; profiles: { full_name: string | null } | null };
 type Pay = { id: string; amount_minor: number; payment_method: string; provider_reference: string | null; status: string; received_at: string };
 type Addr = { name?: string; line1?: string; city?: string; state?: string; postal_code?: string; country?: string };
-type Order = { id: string; order_number: string; status: string; payment_status: string; order_type: string; currency: string; subtotal_minor: number; discount_minor: number; tax_minor: number; shipping_minor: number; total_minor: number; amount_paid_minor: number; placed_at: string; shipped_at: string | null; delivered_at: string | null; expected_delivery: string | null; incoterm: string | null; notes: string | null; internal_notes: string | null; courier_provider: string | null; courier_reference: string | null; tracking_url: string | null; shipping_address: Addr | null; coupon_id: string | null; referral_code: string | null; customers: { id: string; name: string; email: string | null; phone: string | null; company: string | null; gstin: string | null; customer_type: string } | null };
+type Order = { id: string; order_number: string; status: string; payment_status: string; order_type: string; currency: string; subtotal_minor: number; discount_minor: number; tax_minor: number; shipping_minor: number; total_minor: number; amount_paid_minor: number; placed_at: string; shipped_at: string | null; delivered_at: string | null; expected_delivery: string | null; incoterm: string | null; payment_provider: string | null; notes: string | null; internal_notes: string | null; courier_provider: string | null; courier_reference: string | null; tracking_url: string | null; shipping_address: Addr | null; coupon_id: string | null; referral_code: string | null; customers: { id: string; name: string; email: string | null; phone: string | null; company: string | null; gstin: string | null; customer_type: string } | null };
 
-const NEXT: Record<string, string[]> = { draft: ['pending_payment', 'confirmed', 'cancelled'], pending_payment: ['confirmed', 'cancelled'], confirmed: ['processing', 'cancelled'], processing: ['packed', 'cancelled'], packed: ['shipped', 'cancelled'], shipped: ['delivered', 'refunded'], delivered: ['refunded'] };
-const LABEL: Record<string, string> = { pending_payment: 'Waiting for payment', confirmed: 'Confirm order', processing: 'Start processing', packed: 'Mark as packed', shipped: 'Mark as shipped', delivered: 'Mark as delivered', cancelled: 'Cancel order', refunded: 'Refund order' };
-const WARN: Record<string, string> = { packed: 'Stock will be taken from the oldest-expiry batches and the cost of goods will be booked.', shipped: 'A sales invoice entry will be booked in Finance, and any advance payment will be applied to it.', cancelled: 'If stock was already taken it goes back to the shelf, and any advance payment is marked as refunded.', refunded: 'The sales entry is reversed and money received is marked as refunded. Put returned goods back in stock under Inventory → Adjust stock.' };
-const STAGES = ['confirmed', 'processing', 'packed', 'shipped', 'delivered'];
+// Simple flow: Placed -> Accepted -> Shipped (courier + tracking ID) -> Delivered. Shipping an accepted order handles stock and
+// invoicing automatically (the database function ship_order does the in-between steps).
+const NEXT: Record<string, string[]> = { draft: ['confirmed', 'cancelled'], pending_payment: ['confirmed', 'cancelled'], confirmed: ['shipped', 'cancelled'], processing: ['shipped', 'cancelled'], packed: ['shipped', 'cancelled'], shipped: ['delivered', 'refunded'], delivered: ['refunded'] };
+const LABEL: Record<string, string> = { pending_payment: 'Placed', confirmed: 'Accept order', processing: 'Start processing', packed: 'Mark as packed', shipped: 'Ship order', delivered: 'Mark as delivered', cancelled: 'Cancel order', refunded: 'Refund order' };
+const WARN: Record<string, string> = { confirmed: 'The customer is told their order has been accepted.', packed: 'Stock will be taken from the oldest-expiry batches and the cost of goods will be booked.', shipped: 'A sales invoice entry will be booked in Finance, and any advance payment will be applied to it.', cancelled: 'If stock was already taken it goes back to the shelf, and any advance payment is marked as refunded.', refunded: 'The sales entry is reversed and money received is marked as refunded. Put returned goods back in stock under Inventory → Adjust stock.' };
+const STAGES = ['pending_payment', 'confirmed', 'shipped', 'delivered'];
+const stageIndex = (st: string) => (st === 'processing' || st === 'packed' ? STAGES.indexOf('confirmed') : STAGES.indexOf(st));
+const statusName = (st: string | null) => (st ? ORDER_STATUS_LABELS[st] ?? titleCase(st) : '');
 
 export default function OrderDetail({ id }: { id: string }) {
   const role = useRole2(); const [d, setD] = useState<{ order: Order; items: Item[]; events: Ev[]; payments: Pay[] } | null>(null); const [err, setErr] = useState('');
@@ -28,20 +32,20 @@ export default function OrderDetail({ id }: { id: string }) {
   if (!d) return <Spinner />;
   const { order: o, items, events, payments } = d; const c = o.customers;
   const canOps = ['owner', 'admin', 'operations'].includes(role); const canPay = canOps || role === 'finance';
-  const next = NEXT[o.status] ?? []; const outstanding = o.total_minor - o.amount_paid_minor; const idx = STAGES.indexOf(o.status);
+  const next = NEXT[o.status] ?? []; const outstanding = o.total_minor - o.amount_paid_minor; const idx = stageIndex(o.status);
   const money = (n: number) => fmtMoney(n, o.currency);
 
   return <div>
     <Link href="/control-room/orders" className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-600 hover:text-black mb-4 print:hidden"><ArrowLeft size={15} />All orders</Link>
     <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
       <div><h1 className="text-2xl md:text-3xl font-black">{o.order_number}</h1>
-        <div className="flex flex-wrap gap-2 mt-2"><Badge tone={ORDER_STATUS_BADGES[o.status] ?? 'gray'}>{titleCase(o.status)}</Badge><Badge tone={o.payment_status === 'paid' ? 'green' : o.payment_status === 'partial' ? 'amber' : 'red'}>{titleCase(o.payment_status)}</Badge><Badge>{titleCase(o.order_type)}</Badge></div>
+        <div className="flex flex-wrap gap-2 mt-2"><Badge tone={ORDER_STATUS_BADGES[o.status] ?? 'gray'}>{statusName(o.status)}</Badge><Badge tone={o.payment_status === 'paid' ? 'green' : o.payment_status === 'partial' ? 'amber' : 'red'}>{titleCase(o.payment_status)}</Badge><Badge>{titleCase(o.order_type)}</Badge>{o.payment_provider && <Badge tone="gray">{o.payment_provider === 'cod' ? 'Cash on delivery' : o.payment_provider === 'bank_upi' ? 'UPI / bank transfer' : titleCase(o.payment_provider)}</Badge>}</div>
         <p className="text-sm muted mt-2">Placed {fmtDateTime(o.placed_at)}{o.expected_delivery && <> · Expected {fmtDate(o.expected_delivery)}</>}</p></div>
       <div className="flex gap-2 print:hidden"><Btn variant="outline" onClick={() => window.print()}><Printer size={15} />Print summary</Btn></div>
     </div>
     {node && <div className="mb-4 print:hidden">{node}</div>}
 
-    {idx >= 0 && <ol className="flex mb-6 print:hidden" aria-label="Progress">{STAGES.map((s, i) => <li key={s} className="flex-1 text-center"><div className={`h-1.5 ${i === 0 ? 'rounded-l' : ''} ${i === STAGES.length - 1 ? 'rounded-r' : ''} ${i <= idx ? 'bg-vihaar-green' : 'bg-gray-200'}`} /><div className={`text-[11px] mt-1.5 font-bold ${i <= idx ? 'text-vihaar-deep' : 'text-gray-400'}`}>{titleCase(s)}</div></li>)}</ol>}
+    {idx >= 0 && <ol className="flex mb-6 print:hidden" aria-label="Progress">{STAGES.map((s, i) => <li key={s} className="flex-1 text-center"><div className={`h-1.5 ${i === 0 ? 'rounded-l' : ''} ${i === STAGES.length - 1 ? 'rounded-r' : ''} ${i <= idx ? 'bg-vihaar-green' : 'bg-gray-200'}`} /><div className={`text-[11px] mt-1.5 font-bold ${i <= idx ? 'text-vihaar-deep' : 'text-gray-400'}`}>{statusName(s)}</div></li>)}</ol>}
     {(o.status === 'cancelled' || o.status === 'refunded') && <div className="mb-6"><Alert tone="warn">This order is {o.status}. No further changes are possible.</Alert></div>}
 
     <div className="grid lg:grid-cols-3 gap-4">
@@ -70,11 +74,12 @@ export default function OrderDetail({ id }: { id: string }) {
         {canOps && <TrackingCard o={o} onSaved={() => { show('success', 'Details saved.'); load(); }} onError={(m) => show('error', m)} />}
         {canOps && <NoteCard id={o.id} onSaved={() => { show('success', 'Note added.'); load(); }} onError={(m) => show('error', m)} />}
         <Card title="Timeline"><ol className="space-y-4">{events.map((e) => <li key={e.id} className="text-sm border-l-2 border-gray-200 pl-3">
-          <div className="font-semibold">{e.to_status ? titleCase(e.to_status) : titleCase(e.event_type)}{e.is_customer_visible && <span className="ml-2 text-[10px] font-bold text-vihaar-deep">VISIBLE TO CUSTOMER</span>}</div>
+          <div className="font-semibold">{e.to_status ? statusName(e.to_status) : titleCase(e.event_type)}{e.is_customer_visible && <span className="ml-2 text-[10px] font-bold text-vihaar-deep">VISIBLE TO CUSTOMER</span>}</div>
           {e.message && <div className="muted">{e.message}</div>}<div className="text-xs text-gray-400 mt-0.5">{fmtDateTime(e.created_at)}{e.profiles?.full_name ? ` · ${e.profiles.full_name}` : ''}</div></li>)}</ol></Card>
       </div>
     </div>
-    {stage && <StageModal order={o} to={stage} onClose={() => setStage(null)} onDone={() => { setStage(null); show('success', `Order moved to ${titleCase(stage)}.`); load(); }} />}
+    {stage === 'shipped' && <ShipModal order={o} onClose={() => setStage(null)} onDone={() => { setStage(null); show('success', 'Order shipped. The customer has been notified.'); load(); }} />}
+    {stage && stage !== 'shipped' && <StageModal order={o} to={stage} onClose={() => setStage(null)} onDone={() => { setStage(null); show('success', stage === 'confirmed' ? 'Order accepted. The customer has been notified.' : `Order moved to ${statusName(stage)}.`); load(); }} />}
     {pay && <PayModal order={o} outstanding={outstanding} onClose={() => setPay(false)} onDone={() => { setPay(false); show('success', 'Payment recorded.'); load(); }} />}
   </div>;
 }
@@ -82,11 +87,56 @@ const useRole2 = () => useRole();
 
 function StageModal({ order, to, onClose, onDone }: { order: Order; to: string; onClose: () => void; onDone: () => void }) {
   const [note, setNote] = useState(''); const [vis, setVis] = useState(true); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  async function go() { setBusy(true); setErr(''); try { await rpc('set_order_status', { p_order: order.id, p_new: to, ...(note ? { p_note: note } : {}), p_visible: vis }); onDone(); } catch (e) { setErr(errMsg(e)); setBusy(false); } }
+  async function go() { setBusy(true); setErr(''); try { await rpc('set_order_status', { p_order: order.id, p_new: to, ...(note ? { p_note: note } : to === 'confirmed' ? { p_note: 'Your order has been accepted.' } : {}), p_visible: vis }); onDone(); } catch (e) { setErr(errMsg(e)); setBusy(false); } }
   return <Modal title={LABEL[to] ?? titleCase(to)} onClose={onClose} footer={<><Btn variant="outline" onClick={onClose}>Back</Btn><Btn busy={busy} variant={to === 'cancelled' || to === 'refunded' ? 'danger' : 'primary'} onClick={go}>Confirm</Btn></>}>
     <div className="space-y-4">{err && <Alert tone="error">{err}</Alert>}{WARN[to] && <Alert tone="warn">{WARN[to]}</Alert>}
       <Label>Note (optional)<Textarea rows={3} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Packed in 25 kg bags, 4 pallets" /></Label>
       <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" className="accent-[#00994d] w-4 h-4" checked={vis} onChange={(e) => setVis(e.target.checked)} />Show this update to the customer on the tracking page</label></div></Modal>;
+}
+
+function ShipModal({ order, onClose, onDone }: { order: Order; onClose: () => void; onDone: () => void }) {
+  const [couriers, setCouriers] = useState<Courier[]>([]);
+  useEffect(() => { api<Courier[]>('/api/admin/r/couriers?size=100').then((r) => setCouriers(r.filter((c) => c.is_active))).catch(() => {}); }, []);
+  const zone = useMemo(() => detectZone(order), [order]);
+  const [f, setF] = useState({ courier: order.courier_provider ?? '', tracking: order.courier_reference ?? '', url: order.tracking_url ?? '', expected: order.expected_delivery ?? '', note: '' });
+  const [linkEdited, setLinkEdited] = useState(!!order.tracking_url); const [other, setOther] = useState(false);
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const serves = (c: Courier) => (zone === 'state' ? c.serves_state : zone === 'national' ? c.serves_national : c.serves_export);
+  const suggested = couriers.filter(serves); const rest = couriers.filter((c) => !serves(c));
+  const chosen = couriers.find((c) => c.name === f.courier);
+  const isOther = other || (!!f.courier && !chosen);
+  function pick(name: string) {
+    if (name === OTHER) { setOther(true); setF({ ...f, courier: '' }); return; }
+    setOther(false);
+    const c = couriers.find((x) => x.name === name); const link = buildLink(c?.tracking_url_template, f.tracking);
+    setF({ ...f, courier: name, ...(!linkEdited || !f.url ? { url: link } : {}) });
+  }
+  function setNumber(v: string) { const link = buildLink(chosen?.tracking_url_template, v); setF({ ...f, tracking: v, ...(!linkEdited && chosen?.tracking_url_template ? { url: link } : {}) }); }
+  async function go() {
+    if (!f.courier.trim()) { setErr('Choose or enter the courier company.'); return; }
+    if (!f.tracking.trim()) { setErr('Enter the tracking ID.'); return; }
+    if (f.url && !/^https:\/\//.test(f.url)) { setErr('Tracking link must start with https://'); return; }
+    setBusy(true); setErr('');
+    try { await rpc('ship_order', { p_order: order.id, p_courier: f.courier.trim(), p_tracking: f.tracking.trim(), ...(f.url ? { p_tracking_url: f.url } : {}), ...(f.expected ? { p_expected: f.expected } : {}), ...(f.note.trim() ? { p_note: f.note.trim() } : {}) }); onDone(); }
+    catch (e) { setErr(errMsg(e)); setBusy(false); }
+  }
+  return <Modal title={`Ship order · ${order.order_number}`} onClose={onClose} footer={<><Btn variant="outline" onClick={onClose}>Back</Btn><Btn busy={busy} onClick={go}>Mark as shipped</Btn></>}>
+    <div className="space-y-4">{err && <Alert tone="error">{err}</Alert>}
+      <Alert tone="warn">{WARN.packed} {WARN.shipped} The customer is notified with the courier and tracking details.</Alert>
+      <div className="text-xs"><span className="muted">Delivery zone: </span><Badge tone={zone === 'export' ? 'green' : zone === 'state' ? 'gray' : 'blue'}>{ZONE_LABEL[zone]}</Badge></div>
+      <Label>Courier company
+        <Select value={isOther ? OTHER : f.courier} onChange={(e) => pick(e.target.value)}>
+          <option value="">Choose…</option>
+          {suggested.length > 0 && <optgroup label={`Handles ${ZONE_LABEL[zone].toLowerCase()}`}>{suggested.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+          {rest.length > 0 && <optgroup label="Other couriers">{rest.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+          <option value={OTHER}>Other (type the name)…</option>
+        </Select></Label>
+      {isOther && <Label>Courier name<Input maxLength={60} value={f.courier} onChange={(e) => setF({ ...f, courier: e.target.value })} /></Label>}
+      <Label>Tracking ID / LR number<Input maxLength={80} value={f.tracking} onChange={(e) => setNumber(e.target.value)} /></Label>
+      <Label help={chosen && !chosen.tracking_url_template ? 'No link format is saved for this courier. Paste its tracking link, or save the format once under Couriers.' : chosen ? 'Filled in automatically from the tracking ID. You can still edit it.' : 'Optional. Customers use it to open the courier tracking page.'}>Tracking link
+        <Input type="url" placeholder="https://" value={f.url} onChange={(e) => { setLinkEdited(true); setF({ ...f, url: e.target.value }); }} /></Label>
+      <Label>Expected delivery (optional)<Input type="date" value={f.expected} onChange={(e) => setF({ ...f, expected: e.target.value })} /></Label>
+      <Label>Message to the customer (optional)<Textarea rows={2} maxLength={300} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="e.g. Packed in 2 cartons" /></Label></div></Modal>;
 }
 
 function PayModal({ order, outstanding, onClose, onDone }: { order: Order; outstanding: number; onClose: () => void; onDone: () => void }) {
