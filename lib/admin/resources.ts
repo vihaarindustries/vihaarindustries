@@ -55,6 +55,8 @@ export const RESOURCES: Record<string, ResourceDef> = {
     read: ALL, write: CONTENT, remove: OWNER_ADMIN, search: ['name', 'sku'], exportable: true,
     filters: [
       { column: 'is_active', label: 'Status', options: [{ value: 'true', label: 'Published' }, { value: 'false', label: 'Hidden' }] },
+      { column: 'is_retail_available', label: 'Retail store', options: [{ value: 'true', label: 'Shown' }, { value: 'false', label: 'Not shown' }] },
+      { column: 'is_export_available', label: 'Business portal', options: [{ value: 'true', label: 'Shown' }, { value: 'false', label: 'Not shown' }] },
     ],
     emptyText: 'No products yet. Add your first product to show it on the website.',
     fields: [
@@ -79,9 +81,9 @@ export const RESOURCES: Record<string, ResourceDef> = {
       { name: 'reorder_level', label: 'Low-stock alert at', type: 'number', min: 0, step: 0.001, default: 0, group: 'Stock and sales', half: true, help: 'Warn when available stock falls to this quantity' },
       { name: 'shelf_life_days', label: 'Shelf life (days)', type: 'number', min: 1, integer: true, group: 'Stock and sales', half: true },
       { name: 'origin', label: 'Origin', type: 'text', max: 80, group: 'Stock and sales', half: true, placeholder: 'e.g. Gujarat, India' },
-      { name: 'is_retail_available', label: 'Sell to retail customers', type: 'bool', default: true, group: 'Visibility', half: true },
-      { name: 'is_export_available', label: 'Available for export / business', type: 'bool', default: true, group: 'Visibility', half: true },
-      { name: 'is_active', label: 'Published on website', type: 'bool', default: false, group: 'Visibility', half: true },
+      { name: 'is_retail_available', label: 'Show in Retail store', type: 'bool', default: true, group: 'Visibility', half: true, help: 'Retail visitors can see and buy it (needs a retail price to be bought online).' },
+      { name: 'is_export_available', label: 'Show in Business portal', type: 'bool', default: true, group: 'Visibility', half: true, help: 'Business and export visitors can see it and request a quote.' },
+      { name: 'is_active', label: 'Published on website', type: 'bool', default: true, group: 'Visibility', half: true, help: 'Switch off to hide it everywhere. It also needs one of the two "Show in" options above.' },
       { name: 'is_featured', label: 'Featured', type: 'bool', default: false, group: 'Visibility', half: true },
     ],
     columns: [
@@ -89,6 +91,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
       { key: 'retail_price_minor', label: 'Retail price', type: 'money' }, { key: 'wholesale_price_minor', label: 'Business price', type: 'money' },
       { key: 'discount_type', label: 'Discount', type: 'badge', badges: { none: 'gray', percentage: 'green', fixed: 'green' } },
       { key: 'is_active', label: 'Published', type: 'bool' },
+      { key: 'is_retail_available', label: 'In Retail', type: 'bool' }, { key: 'is_export_available', label: 'In Business', type: 'bool' },
     ],
   },
 
@@ -149,7 +152,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
       { name: 'section_key', label: 'Section', type: 'select', required: true, lockOnEdit: true, options: [
         { value: 'products', label: 'Product range' }, { value: 'capabilities', label: 'How we work' }, { value: 'quality', label: 'Quality and trust' }, { value: 'cta', label: 'Enquiry banner' }] },
       { name: 'title', label: 'Heading', type: 'text', required: true, max: 120 },
-      { name: 'content', label: 'Text on this section', type: 'kv', help: 'Optional. Keys: eyebrow, intro' },
+      { name: 'content', label: 'Text on this section', type: 'kv', help: 'Optional. Key: intro (a short line under the heading)' },
       { name: 'is_visible', label: 'Show on website', type: 'bool', default: true },
     ],
     columns: [{ key: 'title', label: 'Heading' }, { key: 'section_key', label: 'Section' }, { key: 'is_visible', label: 'Visible', type: 'bool' }],
