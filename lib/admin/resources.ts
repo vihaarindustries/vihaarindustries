@@ -13,7 +13,7 @@ export type FieldDef = {
   ref?: { resource: string; label: string }; bucket?: 'product-media' | 'site-media' | 'private-documents'; default?: unknown;
   typeField?: string; slugFrom?: string; half?: boolean; hideInForm?: boolean;
 };
-export type ColumnDef = { key: string; label: string; type?: 'text' | 'money' | 'bool' | 'date' | 'datetime' | 'badge' | 'number' | 'image'; badges?: Record<string, 'green' | 'red' | 'amber' | 'blue' | 'gray'>; bucket?: 'product-media' | 'site-media' };
+export type ColumnDef = { key: string; label: string; type?: 'text' | 'money' | 'bool' | 'date' | 'datetime' | 'badge' | 'number' | 'image'; badges?: Record<string, 'green' | 'red' | 'amber' | 'blue' | 'gray'>; labels?: Record<string, string>; bucket?: 'product-media' | 'site-media' };
 export type ResourceDef = {
   key: string; label: string; singular: string; table: string; select?: string;
   orderBy: { column: string; asc?: boolean }; sortable?: boolean;
@@ -32,6 +32,8 @@ const ALL: StaffRole[] = ['owner', 'admin', 'finance', 'operations', 'content_ma
 const OPS_FIN: StaffRole[] = ['owner', 'admin', 'operations', 'finance'];
 const opts = (...v: string[]): Option[] => v.map((x) => ({ value: x, label: x.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) }));
 
+/** Names shown to people. "pending_payment" is the database name of the first stage; it is shown as "Placed". */
+export const ORDER_STATUS_LABELS: Record<string, string> = { draft: 'Draft', pending_payment: 'Placed', confirmed: 'Accepted', processing: 'Accepted', packed: 'Accepted', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', refunded: 'Refunded' };
 export const ORDER_STATUS_BADGES: Record<string, 'green' | 'red' | 'amber' | 'blue' | 'gray'> = {
   draft: 'gray', pending_payment: 'amber', confirmed: 'blue', processing: 'blue', packed: 'blue', shipped: 'blue', delivered: 'green', cancelled: 'red', refunded: 'red',
 };
@@ -57,6 +59,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
       { column: 'is_active', label: 'Status', options: [{ value: 'true', label: 'Published' }, { value: 'false', label: 'Hidden' }] },
       { column: 'is_retail_available', label: 'Retail store', options: [{ value: 'true', label: 'Shown' }, { value: 'false', label: 'Not shown' }] },
       { column: 'is_export_available', label: 'Business portal', options: [{ value: 'true', label: 'Shown' }, { value: 'false', label: 'Not shown' }] },
+      { column: 'is_cod_available', label: 'Cash on delivery', options: [{ value: 'true', label: 'Available' }, { value: 'false', label: 'Not available' }] },
     ],
     emptyText: 'No products yet. Add your first product to show it on the website.',
     fields: [
@@ -83,6 +86,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
       { name: 'origin', label: 'Origin', type: 'text', max: 80, group: 'Stock and sales', half: true, placeholder: 'e.g. Gujarat, India' },
       { name: 'is_retail_available', label: 'Show in Retail store', type: 'bool', default: true, group: 'Visibility', half: true, help: 'Retail visitors can see and buy it (needs a retail price to be bought online).' },
       { name: 'is_export_available', label: 'Show in Business portal', type: 'bool', default: true, group: 'Visibility', half: true, help: 'Business and export visitors can see it and request a quote.' },
+      { name: 'is_cod_available', label: 'Cash on delivery (COD) available', type: 'bool', default: true, group: 'Visibility', half: true, help: 'Switch off if this product must be paid online (UPI / bank transfer). If a cart has any product without COD, customers will not see the COD option.' },
       { name: 'is_active', label: 'Published on website', type: 'bool', default: true, group: 'Visibility', half: true, help: 'Switch off to hide it everywhere. It also needs one of the two "Show in" options above.' },
       { name: 'is_featured', label: 'Featured', type: 'bool', default: false, group: 'Visibility', half: true },
     ],
@@ -92,6 +96,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
       { key: 'discount_type', label: 'Discount', type: 'badge', badges: { none: 'gray', percentage: 'green', fixed: 'green' } },
       { key: 'is_active', label: 'Published', type: 'bool' },
       { key: 'is_retail_available', label: 'In Retail', type: 'bool' }, { key: 'is_export_available', label: 'In Business', type: 'bool' },
+      { key: 'is_cod_available', label: 'COD', type: 'bool' },
     ],
   },
 
@@ -209,7 +214,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
     key: 'orders', label: 'Orders', singular: 'order', table: 'orders', select: '*, customers(name, email, company)', orderBy: { column: 'placed_at' },
     read: OPS_FIN, write: [], remove: [], creatable: false, search: ['order_number'], pii: true, exportable: true,
     filters: [
-      { column: 'status', label: 'Status', options: opts('draft', 'pending_payment', 'confirmed', 'processing', 'packed', 'shipped', 'delivered', 'cancelled', 'refunded') },
+      { column: 'status', label: 'Status', options: [{ value: 'pending_payment', label: 'Placed' }, { value: 'confirmed', label: 'Accepted' }, { value: 'processing', label: 'Processing' }, { value: 'packed', label: 'Packed' }, { value: 'shipped', label: 'Shipped' }, { value: 'delivered', label: 'Delivered' }, { value: 'cancelled', label: 'Cancelled' }, { value: 'refunded', label: 'Refunded' }, { value: 'draft', label: 'Draft' }] },
       { column: 'order_type', label: 'Type', options: opts('retail', 'business', 'export') },
       { column: 'payment_status', label: 'Payment', options: opts('unpaid', 'partial', 'paid', 'refunded') },
     ],
@@ -217,7 +222,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
     fields: [],
     columns: [
       { key: 'order_number', label: 'Order' }, { key: 'customers.name', label: 'Customer' }, { key: 'order_type', label: 'Type', type: 'badge', badges: { retail: 'gray', business: 'blue', export: 'green' } },
-      { key: 'status', label: 'Status', type: 'badge', badges: ORDER_STATUS_BADGES },
+      { key: 'status', label: 'Status', type: 'badge', badges: ORDER_STATUS_BADGES, labels: ORDER_STATUS_LABELS },
       { key: 'payment_status', label: 'Payment', type: 'badge', badges: { unpaid: 'red', partial: 'amber', paid: 'green', refunded: 'gray' } },
       { key: 'total_minor', label: 'Total', type: 'money' }, { key: 'placed_at', label: 'Placed', type: 'date' },
     ],
