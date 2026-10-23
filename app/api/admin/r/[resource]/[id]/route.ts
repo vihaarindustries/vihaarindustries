@@ -1,6 +1,7 @@
 import { getResource } from '@/lib/admin/resources';
 import { audit, dbError, fail, ok, readJson, requireStaff } from '@/lib/admin/http';
 import { ValidationError, isUuid } from '@/lib/admin/validate';
+import { refreshForResource } from '@/lib/admin/revalidate';
 import { buildPayload, diff, storageRefs } from '@/lib/admin/resource-api';
 
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   for (const r of oldRefs) if (!newRefs.some((n) => n.bucket === r.bucket && n.path === r.path)) await ctx.supabase.storage.from(r.bucket).remove([r.path]);
   const d = diff(before as Record<string, unknown>, patch);
   await audit(ctx, req, 'update', def.key, id, d.before, d.after);
+  refreshForResource(def.key);
   return ok(data);
 }
 
@@ -58,5 +60,6 @@ export async function DELETE(req: Request, { params }: Ctx) {
   if (error) return dbError(error);
   for (const r of storageRefs(def, before as Record<string, unknown>)) await ctx.supabase.storage.from(r.bucket).remove([r.path]);
   await audit(ctx, req, 'delete', def.key, id, before, null);
+  refreshForResource(def.key);
   return ok(null);
 }
