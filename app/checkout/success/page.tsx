@@ -13,7 +13,7 @@ export default async function Success({ searchParams }: { searchParams: Promise<
     <div className="w-16 h-16 rounded-full bg-[#e3f4e9] text-[#008b47] flex items-center justify-center text-3xl font-black mx-auto">✓</div>
     <h1 className="text-3xl font-black mt-6">Thank you! Your order is placed.</h1>
     {order && <p className="mt-3">Order number <b className="text-xl">{order}</b></p>}
-    <p className="muted mt-3">We will confirm your order shortly and update you by email. Keep your order number and the email you used — you need both to track it.</p>
-    <div className="flex flex-wrap justify-center gap-3 mt-8"><Link href="/track" className="btn">Track my order ↗</Link><Link href="/retail#products" className="btn btn-outline">Continue shopping</Link>{wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="btn btn-outline">WhatsApp us</a>}</div>
+    <p className="muted mt-3">Your order is <b>placed</b>. We will let you know by email when it is <b>accepted</b>, and again when it is <b>shipped</b> with the courier and tracking details. You can follow every step from your account.</p>
+    <div className="flex flex-wrap justify-center gap-3 mt-8"><Link href="/account" className="btn">View my orders ↗</Link><Link href="/track" className="btn btn-outline">Track an order</Link><Link href="/retail#products" className="btn btn-outline">Continue shopping</Link>{wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="btn btn-outline">WhatsApp us</a>}</div>
   </main><Footer mode="retail" /></>;
 }
