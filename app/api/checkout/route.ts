@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createService } from '@/lib/supabase/service';
+import { createClient } from '@/lib/supabase/server';
+import { notifyOrderPlaced } from '@/lib/order-notify';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
 import { sameOrigin } from '@/lib/admin/http';
 import { isUuid } from '@/lib/admin/validate';
@@ -10,10 +12,15 @@ const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice
 
 /**
  * Retail checkout. The browser only sends who is buying, where to deliver, and product ids with quantities.
- * Prices, discount, GST, coupon rules and the order itself are all decided by the database function place_retail_order().
+ * Prices, discount, GST, coupon rules, per-product Cash-on-delivery and the order itself are all decided by the database function place_retail_order().
+ * The buyer is the signed-in account; the email on the order is always the account's email.
  */
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return reply({ error: 'Request blocked.' }, 403);
+  // Orders can only be placed by a signed-in customer. The identity comes from the session cookie, never from the request body.
+  const auth = await createClient();
+  const { data: { user } } = auth ? await auth.auth.getUser() : { data: { user: null } };
+  if (!user) return reply({ error: 'Please sign in to place your order.', signin: true }, 401);
   const ip = clientIp(req);
   if (!rateLimit(`chk:${ip}`, 5, 10 * 60_000).ok || !rateLimit(`chk-h:${ip}`, 20, 3_600_000).ok) return reply({ error: 'Too many orders from this connection. Please try again later.' }, 429);
   let b: Record<string, unknown>;
@@ -38,8 +45,10 @@ export async function POST(req: Request) {
 
   const svc = createService();
   if (!svc) return reply({ error: 'Online ordering is not available right now. Please contact us to place your order.' }, 503);
+  const accountEmail = (user.email ?? '').toLowerCase();
   const { data, error } = await svc.rpc('place_retail_order', {
-    p_name: str(b.name, 160), p_email: str(b.email, 254), p_phone: str(b.phone, 40), p_address: address,
+    p_user_id: user.id,
+    p_name: str(b.name, 160), p_email: accountEmail, p_phone: str(b.phone, 40), p_address: address,
     p_items: [...merged].map(([product_id, quantity]) => ({ product_id, quantity })),
     p_coupon_code: coupon || null, p_notes: str(b.notes, 500) || null, p_payment_method: payment,
   });
@@ -48,5 +57,6 @@ export async function POST(req: Request) {
     if (error.code === 'VI001' || error.code === 'P0001') return reply({ error: error.message }, 422);
     return reply({ error: 'We could not place your order right now. Please try again or contact us.' }, 500);
   }
+  void notifyOrderPlaced({ to: accountEmail, name: str(b.name, 160), orderNumber: data?.order_number, totalMinor: data?.total_minor });
   return reply({ order_number: data?.order_number, total_minor: data?.total_minor });
 }
