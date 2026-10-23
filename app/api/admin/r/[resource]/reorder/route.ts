@@ -1,5 +1,6 @@
 import { getResource } from '@/lib/admin/resources';
 import { audit, dbError, fail, ok, readJson, requireStaff } from '@/lib/admin/http';
+import { refreshForResource } from '@/lib/admin/revalidate';
 import { isUuid } from '@/lib/admin/validate';
 
 export const dynamic = 'force-dynamic';
@@ -19,5 +20,6 @@ export async function POST(req: Request, { params }: Ctx) {
     if (error) return dbError(error);
   }
   await audit(g.ctx, req, 'reorder', def.key, null, null, { count: ids.length });
+  refreshForResource(def.key);
   return ok(null);
 }
