@@ -56,10 +56,16 @@ export async function middleware(req: NextRequest) {
         },
       },
     });
-    await supabase.auth.getUser();   // validates the session and refreshes tokens when needed
+    const { data: { user } } = await supabase.auth.getUser();   // validates the session and refreshes tokens when needed
+    // Checkout needs a signed-in customer. Everyone else is sent to sign in and brought back afterwards.
+    if (pathname.startsWith('/checkout') && !user) {
+      const to = req.nextUrl.clone();
+      to.pathname = '/auth/sign-in'; to.search = ''; to.searchParams.set('next', pathname);
+      return NextResponse.redirect(to);
+    }
   }
-  if (guarded || pathname.startsWith('/auth') || pathname.startsWith('/account')) res.headers.set('Cache-Control', 'no-store');
+  if (guarded || pathname.startsWith('/auth') || pathname.startsWith('/account') || pathname.startsWith('/checkout')) res.headers.set('Cache-Control', 'no-store');
   return res;
 }
 
-export const config = { matcher: ['/control-room/:path*', '/api/admin/:path*', '/auth/:path*', '/account/:path*', '/api/enquiry'] };
+export const config = { matcher: ['/control-room/:path*', '/api/admin/:path*', '/auth/:path*', '/account/:path*', '/checkout/:path*', '/api/enquiry'] };
