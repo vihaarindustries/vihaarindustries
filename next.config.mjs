@@ -4,13 +4,11 @@ try { supabaseOrigin = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').origi
 
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net${isProd ? '' : " 'unsafe-eval'"}`,
+  `script-src 'self' 'unsafe-inline'${isProd ? '' : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: https://*.supabase.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net ${supabaseOrigin}`.trim(),
+  `img-src 'self' data: blob: https://*.supabase.co https://res.cloudinary.com ${supabaseOrigin}`.trim(),
   "font-src 'self' data:",
-  `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://tessdata.projectnaptha.com ${supabaseOrigin}`.trim(),
-  "worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://tessdata.projectnaptha.com",
-  "frame-src 'self' blob:",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cloudinary.com ${supabaseOrigin}`.trim(),
   "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'",
   ...(isProd ? ['upgrade-insecure-requests'] : []),
 ].join('; ');
