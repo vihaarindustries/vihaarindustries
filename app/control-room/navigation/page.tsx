@@ -5,20 +5,18 @@ import { Alert, Btn, Card, Input, PageHeader, Spinner, useFlash } from '@/compon
 import { useSetting } from '@/components/admin/useSetting';
 import { errMsg } from '@/lib/admin/client';
 import { slugify } from '@/lib/format';
+import { DEFAULT_NAV, type NavItem as Item, type NavSettings as Nav } from '@/lib/nav';
 
-type Item = { key: string; label: string; href: string; visible: boolean };
-type Nav = { items: Item[]; show_switch: boolean; show_signin: boolean };
-const DEFAULT: Nav = { items: [], show_switch: true, show_signin: true };
 
 export default function Page() {
-  const { value, setValue, loading, error, save } = useSetting<Nav>('nav_visibility', DEFAULT);
+  const { value, setValue, loading, error, save } = useSetting<Nav>('nav_visibility', DEFAULT_NAV);
   const [busy, setBusy] = useState(false); const { show, node } = useFlash();
   const set = (items: Item[]) => setValue({ ...value, items });
   const move = (i: number, d: -1 | 1) => { const j = i + d; if (j < 0 || j >= value.items.length) return; const n = [...value.items]; [n[i], n[j]] = [n[j], n[i]]; set(n); };
   const upd = (i: number, p: Partial<Item>) => set(value.items.map((it, j) => (j === i ? { ...it, ...p } : it)));
   async function submit() {
     setBusy(true);
-    try { await save({ ...value, items: value.items.map((it) => ({ ...it, key: it.key || slugify(it.label) || 'item' })) }); show('success', 'Navigation saved. The website updates within a minute.'); } catch (e) { show('error', errMsg(e)); } finally { setBusy(false); }
+    try { await save({ ...value, items: value.items.map((it) => ({ ...it, key: it.key || slugify(it.label) || 'item' })) }); show('success', 'Navigation saved. The website now shows it.'); } catch (e) { show('error', errMsg(e)); } finally { setBusy(false); }
   }
   if (loading) return <Spinner />;
   return <div><PageHeader title="Navigation menu" subtitle="Choose which links appear in the website header, rename them and change their order." actions={<Btn busy={busy} onClick={submit}>Save navigation</Btn>} />
@@ -33,9 +31,9 @@ export default function Page() {
         </li>)}</ul>
         {value.items.length < 12 && <Btn variant="outline" size="sm" className="mt-4" onClick={() => set([...value.items, { key: '', label: 'New link', href: '/', visible: true }])}><Plus size={14} />Add link</Btn>}
         <p className="text-xs muted mt-3">Links must start with / or #, for example /enquiry or /retail#products.</p>
+        <div className="mt-4"><Alert tone="info">Visitors choose Retail or Business on the first page, and the menu adapts: <b>/business</b> links only show to retail visitors, <b>/track</b> (Track order) only to retail visitors, and <b>/retail#…</b> links automatically point to the Business page for business visitors. On phones the same links open from the menu button.</Alert></div>
       </Card>
       <Card title="Header buttons">
-        <label className="flex items-start gap-2.5 text-sm font-semibold mb-4"><input type="checkbox" className="mt-0.5 w-4 h-4 accent-[#00994d]" checked={value.show_switch} onChange={(e) => setValue({ ...value, show_switch: e.target.checked })} /><span>Retail / Business switch<span className="block text-xs font-normal muted">The two small buttons next to Enquire.</span></span></label>
         <label className="flex items-start gap-2.5 text-sm font-semibold"><input type="checkbox" className="mt-0.5 w-4 h-4 accent-[#00994d]" checked={value.show_signin} onChange={(e) => setValue({ ...value, show_signin: e.target.checked })} /><span>Sign-in link<span className="block text-xs font-normal muted">Hide it until customer accounts are in use.</span></span></label>
       </Card>
     </div></div>;
