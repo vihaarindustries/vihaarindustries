@@ -20,8 +20,8 @@ export function RetailGrid({ items }: { items: DbProduct[] }) {
   return <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">{items.map((p) => {
     const price = effectivePrice(p); const sale = p.retail_price_minor != null && price != null && price < p.retail_price_minor;
     const { url } = mainImage(p); const min = Math.max(p.min_order_quantity && p.min_order_quantity > 0 ? Number(p.min_order_quantity) : 1, 0.001);
-    return <article className="product-card flex flex-col" key={p.id}><Art p={p} badge={sale ? 'OFFER' : p.is_featured ? 'FEATURED' : undefined} />
-      <div className="p-5 flex flex-col flex-1"><div className="eyebrow !text-[9px]">{p.product_categories?.name ?? 'INGREDIENT'}</div><h3 className="text-xl font-black mt-2">{p.name}</h3>
+    return <article className="product-card flex flex-col" key={p.id}><Link href={`/products/${p.slug}`} aria-label={`View ${p.name}`}><Art p={p} badge={sale ? 'OFFER' : p.is_featured ? 'FEATURED' : undefined} /></Link>
+      <div className="p-5 flex flex-col flex-1"><div className="eyebrow !text-[9px]">{p.product_categories?.name ?? 'INGREDIENT'}</div><h3 className="text-xl font-black mt-2"><Link href={`/products/${p.slug}`} className="hover:underline">{p.name}</Link></h3>
         {p.short_description && <p className="muted text-sm mt-2">{p.short_description}</p>}
         <div className="mt-auto pt-4">
           {price != null ? <p className="mb-4 text-sm"><b className="text-xl">{fmtMoney(price)}</b> <span className="muted">/ {p.unit}</span>{sale && <s className="muted ml-2">{fmtMoney(p.retail_price_minor)}</s>}{Number(p.tax_rate) > 0 && <span className="block text-[11px] muted mt-0.5">+ {fmtNum(p.tax_rate)}% GST</span>}</p> : <p className="mb-4 text-sm muted">Price on request</p>}
@@ -34,8 +34,8 @@ export function RetailGrid({ items }: { items: DbProduct[] }) {
 export function BusinessGrid({ items }: { items: DbProduct[] }) {
   return <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">{items.map((p) => {
     const specs = Object.entries(p.specifications ?? {}).slice(0, 4);
-    return <article className="product-card flex flex-col" key={p.id}><Art p={p} />
-      <div className="p-5 flex flex-col flex-1"><div className="eyebrow !text-[9px]">{p.product_categories?.name ?? 'INGREDIENT'}</div><h3 className="text-xl font-black mt-2">{p.name}</h3>
+    return <article className="product-card flex flex-col" key={p.id}><Link href={`/products/${p.slug}`} aria-label={`View ${p.name}`}><Art p={p} /></Link>
+      <div className="p-5 flex flex-col flex-1"><div className="eyebrow !text-[9px]">{p.product_categories?.name ?? 'INGREDIENT'}</div><h3 className="text-xl font-black mt-2"><Link href={`/products/${p.slug}`} className="hover:underline">{p.name}</Link></h3>
         {p.short_description && <p className="muted text-sm mt-2">{p.short_description}</p>}
         {specs.length > 0 && <dl className="mt-3 space-y-1 text-xs">{specs.map(([k, v]) => <div key={k} className="flex justify-between gap-3 border-b border-gray-100 pb-1"><dt className="muted">{k}</dt><dd className="font-semibold text-right">{v}</dd></div>)}</dl>}
         <p className="text-xs muted mt-3">{[p.min_order_quantity && Number(p.min_order_quantity) > 0 ? `MOQ ${fmtNum(p.min_order_quantity)} ${p.unit}` : '', p.origin ? `Origin: ${p.origin}` : ''].filter(Boolean).join('  ·  ') || 'Pricing on request'}</p>
