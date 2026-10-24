@@ -51,6 +51,7 @@ export const NAV: NavItem[] = [
 
   { key: 'team', label: 'Team & access', href: '/control-room/team', group: 'Settings', roles: ['owner', 'admin'] },
   { key: 'security', label: 'Security', href: '/control-room/security', group: 'Settings', roles: ALL },
+  { key: 'emails', label: 'Email templates', href: '/control-room/emails', group: 'Settings', roles: ['owner', 'admin'] },
   { key: 'chatbot', label: 'AI chatbot', href: '/control-room/chatbot', group: 'Settings', roles: ['owner', 'admin', 'content_manager'] },
   { key: 'integrations', label: 'Integrations', href: '/control-room/integrations', group: 'Settings', roles: ['owner', 'admin'] },
   { key: 'audit', label: 'Audit log', href: '/control-room/audit', group: 'Settings', roles: ['owner', 'admin', 'finance'] },
