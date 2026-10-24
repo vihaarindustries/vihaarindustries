@@ -63,7 +63,7 @@ function SignUpContent() {
       {sent ? (
         <div role="status" className="bg-white border border-gray-200 rounded-xl p-6 mt-6 space-y-3">
           <h2 className="font-black text-lg">Check your email</h2>
-          <p className="text-sm">We sent a confirmation link to <b>{email}</b>. Open it to activate your account, then sign in.</p>
+          <p className="text-sm">We sent a confirmation link to <b>{email}</b>. Open the email, press the confirm button, and your account is ready. If you do not see it, check your spam folder.</p>
           <a href={signInHref} className="btn w-full">Go to sign in</a>
         </div>
       ) : (
