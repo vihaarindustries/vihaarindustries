@@ -1,7 +1,7 @@
 import { RPC, hasRpc } from '@/lib/admin/rpc';
 import { dbError, fail, ok, readJson, requireStaff } from '@/lib/admin/http';
 import { ValidationError, check } from '@/lib/admin/validate';
-import { notifyOrderAccepted, notifyOrderShipped } from '@/lib/order-notify';
+import { notifyAfterAction, snapshotBefore } from '@/lib/order-notify';
 
 export const dynamic = 'force-dynamic';
 type Ctx = { params: Promise<{ name: string }> | { name: string } };
@@ -21,19 +21,11 @@ export async function POST(req: Request, { params }: Ctx) {
     for (const k of Object.keys(body)) if (!(k in def.params)) throw new ValidationError('Unexpected field.');
     for (const [k, s] of Object.entries(def.params)) { const v = check(s, body[k], k.replace(/^p_/, '').replace(/_/g, ' ')); if (v !== null) args[k] = v; }
   } catch (e) { if (e instanceof ValidationError) return fail(e.message, 422); throw e; }
+  const before = await snapshotBefore(g.ctx.supabase, name, args);   // a refund zeroes "amount paid", so read it first
   const { data, error } = await g.ctx.supabase.rpc(name, args);
   if (error) return dbError(error);
-  // Tell the customer by email when their order is accepted or shipped. Failures here never undo the action.
-  if (name === 'ship_order' || (name === 'set_order_status' && args.p_new === 'confirmed')) {
-    try {
-      const { data: o } = await g.ctx.supabase.from('orders')
-        .select('order_number, courier_provider, courier_reference, tracking_url, expected_delivery, customers(name, email)').eq('id', args.p_order as string).maybeSingle();
-      const c = o?.customers as unknown as { name?: string; email?: string | null } | null;
-      if (o && c?.email) {
-        if (name === 'ship_order') await notifyOrderShipped({ to: c.email, name: c.name ?? '', orderNumber: o.order_number, courier: o.courier_provider, trackingId: o.courier_reference, trackingUrl: o.tracking_url, expected: o.expected_delivery });
-        else await notifyOrderAccepted({ to: c.email, name: c.name ?? '', orderNumber: o.order_number });
-      }
-    } catch { /* ignore */ }
-  }
+  // Customer emails (accepted, shipped, delivered, payment received, refunded). Wording is edited in Control room -> Email templates.
+  // Awaited on purpose: on Vercel, work left running after the response is sent can be cut off. A failure here never undoes the action.
+  await notifyAfterAction(g.ctx.supabase, name, args, before);
   return ok(data);
 }
