@@ -57,6 +57,7 @@ export async function POST(req: Request) {
     if (error.code === 'VI001' || error.code === 'P0001') return reply({ error: error.message }, 422);
     return reply({ error: 'We could not place your order right now. Please try again or contact us.' }, 500);
   }
-  void notifyOrderPlaced({ to: accountEmail, name: str(b.name, 160), orderNumber: data?.order_number, totalMinor: data?.total_minor });
+  // Awaited on purpose: on Vercel a background send can be cut off once the response is returned. Never throws.
+  await notifyOrderPlaced({ to: accountEmail, name: str(b.name, 160), orderNumber: data?.order_number, totalMinor: data?.total_minor });
   return reply({ order_number: data?.order_number, total_minor: data?.total_minor });
 }
