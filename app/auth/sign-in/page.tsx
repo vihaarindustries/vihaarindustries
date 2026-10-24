@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { safeNext } from '@/lib/safe-redirect';
+import GoogleButton from '@/components/auth/GoogleButton';
 
 function SignInContent() {
   const params = useSearchParams();
@@ -62,9 +63,18 @@ function SignInContent() {
         </p>
       )}
 
+      {params.get('oauth_error') && (
+        <p role="alert" className="mt-4 text-sm bg-red-50 text-red-800 rounded-lg px-4 py-3">
+          Google sign-in was cancelled or did not complete. Please try again, or use your email and password.
+        </p>
+      )}
+
+      <div className="mt-6"><GoogleButton next={safeNext(params.get('next'))} /></div>
+      <div className="flex items-center gap-3 mt-5 text-xs muted" aria-hidden="true"><span className="flex-1 border-t border-gray-200" />or sign in with email<span className="flex-1 border-t border-gray-200" /></div>
+
       <form
         onSubmit={submit}
-        className="bg-white border border-gray-200 rounded-xl p-6 mt-6 space-y-4"
+        className="bg-white border border-gray-200 rounded-xl p-6 mt-5 space-y-4"
       >
         <label className="block text-sm font-semibold">
           Email
