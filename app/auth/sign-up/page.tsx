@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { safeNext } from '@/lib/safe-redirect';
+import GoogleButton from '@/components/auth/GoogleButton';
 
 function SignUpContent() {
   const params = useSearchParams();
@@ -67,7 +68,10 @@ function SignUpContent() {
           <a href={signInHref} className="btn w-full">Go to sign in</a>
         </div>
       ) : (
-        <form onSubmit={submit} className="bg-white border border-gray-200 rounded-xl p-6 mt-6 space-y-4">
+        <>
+        <div className="mt-6"><GoogleButton next={next} label="Sign up with Google" /></div>
+        <div className="flex items-center gap-3 mt-5 text-xs muted" aria-hidden="true"><span className="flex-1 border-t border-gray-200" />or create an account with email<span className="flex-1 border-t border-gray-200" /></div>
+        <form onSubmit={submit} className="bg-white border border-gray-200 rounded-xl p-6 mt-5 space-y-4">
           <label className="block text-sm font-semibold">Full name
             <input className="field block mt-2" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={160} />
           </label>
@@ -83,6 +87,7 @@ function SignUpContent() {
           <button disabled={busy} className="btn w-full">{busy ? 'Creating account…' : 'Create account'}</button>
           {message && <p role="alert" className="text-sm text-red-700">{message}</p>}
         </form>
+        </>
       )}
 
       <p className="text-sm mt-6">Already have an account? <a href={signInHref} className="font-bold underline">Sign in</a></p>
