@@ -7,7 +7,11 @@ import { buildSystemPrompt, type ChatProduct } from '@/lib/chat/prompt';
 
 export const dynamic = 'force-dynamic';
 const reply = (b: object, status = 200) => NextResponse.json(b, { status, headers: { 'Cache-Control': 'no-store' } });
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';   // set GEMINI_MODEL to a current Gemini model name
+// Google retired gemini-2.5-flash on 16 Oct 2026. Set GEMINI_MODEL in the server settings to switch models without a code change.
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+// Optional: newer Gemini models "think" before answering, and that thinking uses up the reply budget. For a short website answer
+// 'minimal' or 'low' is plenty. Leave GEMINI_THINKING_LEVEL unset to use the model's own default.
+const THINKING = ['minimal', 'low', 'medium', 'high'].includes(process.env.GEMINI_THINKING_LEVEL ?? '') ? process.env.GEMINI_THINKING_LEVEL : undefined;
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return reply({ error: 'Request blocked.' }, 403);
@@ -42,11 +46,11 @@ export async function POST(req: Request) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] }, contents: messages,
-        generationConfig: { maxOutputTokens: 400, temperature: 0.4 },
+        generationConfig: { maxOutputTokens: 1024, temperature: 0.4, ...(THINKING ? { thinkingConfig: { thinkingLevel: THINKING } } : {}) },   // 1024 leaves room for thinking AND the answer
       }),
       signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) { console.error('[chat] Gemini error', res.status); return reply({ error: 'The assistant is busy. Please try again in a moment.' }, 502); }
+    if (!res.ok) { const why = await res.json().then((j) => String(j?.error?.message ?? '').slice(0, 200)).catch(() => ''); console.error('[chat] Gemini error', res.status, why); return reply({ error: 'The assistant is busy. Please try again in a moment.' }, 502); }
     const json = await res.json();
     const text: string | undefined = json?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('').trim();
     return reply({ reply: text || 'Sorry, I could not answer that. Please use the Enquiry page and our team will help.' });
