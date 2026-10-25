@@ -22,10 +22,11 @@ export default function Shell({ nav, role, name, email, idleMinutes, children }:
   const hrefs = nav.map((n) => n.href);
   const groups = NAV_GROUPS.map((g) => ({ g, items: nav.filter((n) => n.group === g) })).filter((x) => x.items.length);
   const activeGroup = groups.find((x) => x.items.some((i) => isActive(pathname, i.href, hrefs)))?.g;
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Only ONE group is open at a time: the one you are working in. Opening another group, or going to another page, closes the rest.
+  const [open, setOpen] = useState<Record<string, boolean>>(() => (activeGroup ? { [activeGroup]: true } : {}));
   const [badges, setBadges] = useState<Record<string, number>>({});
 
-  useEffect(() => { setDrawer(false); if (activeGroup) setOpen((o) => ({ ...o, [activeGroup]: true })); }, [pathname, activeGroup]);
+  useEffect(() => { setDrawer(false); if (activeGroup) setOpen({ [activeGroup]: true }); }, [pathname, activeGroup]);
 
   useEffect(() => {
     let live = true;
@@ -56,9 +57,9 @@ export default function Shell({ nav, role, name, email, idleMinutes, children }:
     <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1" aria-label="Control room">
       {groups.map(({ g, items }) => {
         const single = g === 'Overview';
-        const isOpen = single || open[g] || g === activeGroup;
+        const isOpen = single || !!open[g];
         return <div key={g}>
-          {!single && <button onClick={() => setOpen((o) => ({ ...o, [g]: !isOpen }))} aria-expanded={isOpen}
+          {!single && <button onClick={() => setOpen(isOpen ? {} : { [g]: true })} aria-expanded={isOpen}
             className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 hover:text-white">
             {g}<ChevronDown size={14} className={cx('transition', isOpen && 'rotate-180')} /></button>}
           {isOpen && <div className="space-y-0.5">{items.map((i) => {
