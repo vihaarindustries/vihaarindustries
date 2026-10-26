@@ -7,12 +7,14 @@ import { useRole } from '../role';
 import { api, rpc, errMsg } from '@/lib/admin/client';
 import { ORDER_STATUS_BADGES, ORDER_STATUS_LABELS } from '@/lib/admin/resources';
 import { fmtDate, fmtDateTime, fmtMoney, fmtNum, titleCase } from '@/lib/format';
+import { formatMajor, minorToMajor, sourceLabel } from '@/lib/fx/currencies';
+import { FxPicker, fxReady, initialChoice, lockArgs, useFxData, type FxChoice } from './FxPicker';
 
 type Item = { id: string; product_name_snapshot: string; sku_snapshot: string | null; quantity: number; unit_price_minor: number; discount_minor: number; tax_rate: number; tax_minor: number; line_total_minor: number };
 type Ev = { id: string; event_type: string; from_status: string | null; to_status: string | null; message: string | null; is_customer_visible: boolean; created_at: string; profiles: { full_name: string | null } | null };
 type Pay = { id: string; amount_minor: number; payment_method: string; provider_reference: string | null; status: string; received_at: string };
 type Addr = { name?: string; line1?: string; city?: string; state?: string; postal_code?: string; country?: string };
-type Order = { id: string; order_number: string; status: string; payment_status: string; order_type: string; currency: string; subtotal_minor: number; discount_minor: number; tax_minor: number; shipping_minor: number; total_minor: number; amount_paid_minor: number; placed_at: string; shipped_at: string | null; delivered_at: string | null; expected_delivery: string | null; incoterm: string | null; payment_provider: string | null; notes: string | null; internal_notes: string | null; courier_provider: string | null; courier_reference: string | null; tracking_url: string | null; shipping_address: Addr | null; coupon_id: string | null; referral_code: string | null; customers: { id: string; name: string; email: string | null; phone: string | null; company: string | null; gstin: string | null; customer_type: string } | null };
+type Order = { id: string; order_number: string; status: string; payment_status: string; order_type: string; currency: string; subtotal_minor: number; discount_minor: number; tax_minor: number; shipping_minor: number; total_minor: number; amount_paid_minor: number; placed_at: string; shipped_at: string | null; delivered_at: string | null; expected_delivery: string | null; incoterm: string | null; payment_provider: string | null; notes: string | null; internal_notes: string | null; courier_provider: string | null; courier_reference: string | null; tracking_url: string | null; shipping_address: Addr | null; coupon_id: string | null; referral_code: string | null; record_currency?: string | null; fx_rate?: number | null; fx_source?: string | null; fx_rate_date?: string | null; record_total_minor?: number | null; customers: { id: string; name: string; email: string | null; phone: string | null; company: string | null; gstin: string | null; customer_type: string } | null };
 
 // Simple flow: Placed -> Accepted -> Shipped (courier + tracking ID) -> Delivered. Shipping an accepted order handles stock and
 // invoicing automatically (the database function ship_order does the in-between steps).
@@ -25,7 +27,7 @@ const statusName = (st: string | null) => (st ? ORDER_STATUS_LABELS[st] ?? title
 
 export default function OrderDetail({ id }: { id: string }) {
   const role = useRole2(); const [d, setD] = useState<{ order: Order; items: Item[]; events: Ev[]; payments: Pay[] } | null>(null); const [err, setErr] = useState('');
-  const [stage, setStage] = useState<string | null>(null); const [pay, setPay] = useState(false); const { show, node } = useFlash();
+  const [stage, setStage] = useState<string | null>(null); const [pay, setPay] = useState(false); const [fxOpen, setFxOpen] = useState(false); const { show, node } = useFlash();
   const load = useCallback(() => { api<{ order: Order; items: Item[]; events: Ev[]; payments: Pay[] }>(`/api/admin/orders/${id}`).then(setD).catch((e) => setErr(errMsg(e))); }, [id]);
   useEffect(load, [load]);
   if (err) return <Alert tone="error">{err}</Alert>;
@@ -71,6 +73,13 @@ export default function OrderDetail({ id }: { id: string }) {
       <div className="space-y-4 print:hidden">
         {canOps && next.length > 0 && <Card title="Next step"><div className="space-y-2">{next.map((s) => <Btn key={s} className="w-full" variant={s === 'cancelled' || s === 'refunded' ? 'outline' : 'primary'} onClick={() => setStage(s)}>{LABEL[s]}</Btn>)}</div></Card>}
         {canPay && !['cancelled', 'refunded', 'draft'].includes(o.status) && outstanding > 0 && <Card title="Payment"><p className="text-sm mb-3">Balance due: <b>{money(outstanding)}</b></p><Btn className="w-full" variant="outline" onClick={() => setPay(true)}>Record a payment</Btn></Card>}
+        {(canOps || role === 'finance') && !['cancelled', 'refunded'].includes(o.status) && <Card title="Currency">
+          {o.record_currency && o.record_total_minor != null
+            ? <div className="text-sm space-y-1"><p>Recorded in <b>{o.record_currency}</b>: <b>{formatMajor(minorToMajor(o.record_total_minor, o.record_currency), o.record_currency)}</b></p>
+                <p className="text-xs muted">1 {o.record_currency} = ₹{Number(o.fx_rate).toFixed(4)} · {sourceLabel(o.fx_source ?? '')}{o.fx_rate_date ? ` · ${fmtDate(o.fx_rate_date)}` : ''}</p></div>
+            : <p className="text-sm muted">Recorded in INR (no conversion).</p>}
+          {['draft', 'pending_payment', 'confirmed', 'processing', 'packed'].includes(o.status) && <Btn className="w-full mt-3" variant="outline" onClick={() => setFxOpen(true)}>{o.record_currency ? 'Change currency or rate' : 'Record in another currency'}</Btn>}
+        </Card>}
         {canOps && <TrackingCard o={o} onSaved={() => { show('success', 'Details saved.'); load(); }} onError={(m) => show('error', m)} />}
         {canOps && <NoteCard id={o.id} onSaved={() => { show('success', 'Note added.'); load(); }} onError={(m) => show('error', m)} />}
         <Card title="Timeline"><ol className="space-y-4">{events.map((e) => <li key={e.id} className="text-sm border-l-2 border-gray-200 pl-3">
@@ -80,6 +89,7 @@ export default function OrderDetail({ id }: { id: string }) {
     </div>
     {stage === 'shipped' && <ShipModal order={o} onClose={() => setStage(null)} onDone={() => { setStage(null); show('success', 'Order shipped. The customer has been notified.'); load(); }} />}
     {stage && stage !== 'shipped' && <StageModal order={o} to={stage} onClose={() => setStage(null)} onDone={() => { setStage(null); show('success', stage === 'confirmed' ? 'Order accepted. The customer has been notified.' : `Order moved to ${statusName(stage)}.`); load(); }} />}
+    {fxOpen && <CurrencyModal order={o} onClose={() => setFxOpen(false)} onDone={() => { setFxOpen(false); show('success', 'Currency and exchange rate saved.'); load(); }} />}
     {pay && <PayModal order={o} outstanding={outstanding} onClose={() => setPay(false)} onDone={() => { setPay(false); show('success', 'Payment recorded.'); load(); }} />}
   </div>;
 }
@@ -87,11 +97,31 @@ const useRole2 = () => useRole();
 
 function StageModal({ order, to, onClose, onDone }: { order: Order; to: string; onClose: () => void; onDone: () => void }) {
   const [note, setNote] = useState(''); const [vis, setVis] = useState(true); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  async function go() { setBusy(true); setErr(''); try { await rpc('set_order_status', { p_order: order.id, p_new: to, ...(note ? { p_note: note } : to === 'confirmed' ? { p_note: 'Your order has been accepted.' } : {}), p_visible: vis }); onDone(); } catch (e) { setErr(errMsg(e)); setBusy(false); } }
-  return <Modal title={LABEL[to] ?? titleCase(to)} onClose={onClose} footer={<><Btn variant="outline" onClick={onClose}>Back</Btn><Btn busy={busy} variant={to === 'cancelled' || to === 'refunded' ? 'danger' : 'primary'} onClick={go}>Confirm</Btn></>}>
+  // Accepting is the moment the recording currency is decided and the exchange rate locked. Rupee orders skip it entirely.
+  const accepting = to === 'confirmed'; const fx = useFxData(); const [choice, setChoice] = useState<FxChoice>(() => initialChoice(order));
+  const needsLock = accepting && (choice.currency !== 'INR' || !!order.record_currency);
+  const blocked = accepting && choice.currency !== 'INR' && !fxReady(choice, fx.data);
+  async function go() {
+    setBusy(true); setErr('');
+    try {
+      if (needsLock) await rpc('lock_order_currency', lockArgs(order.id, choice));
+      await rpc('set_order_status', { p_order: order.id, p_new: to, ...(note ? { p_note: note } : to === 'confirmed' ? { p_note: 'Your order has been accepted.' } : {}), p_visible: vis });
+      onDone();
+    } catch (e) { setErr(errMsg(e)); setBusy(false); }
+  }
+  return <Modal title={LABEL[to] ?? titleCase(to)} wide={accepting} onClose={onClose} footer={<><Btn variant="outline" onClick={onClose}>Back</Btn><Btn busy={busy} disabled={blocked} variant={to === 'cancelled' || to === 'refunded' ? 'danger' : 'primary'} onClick={go}>Confirm</Btn></>}>
     <div className="space-y-4">{err && <Alert tone="error">{err}</Alert>}{WARN[to] && <Alert tone="warn">{WARN[to]}</Alert>}
+      {accepting && <FxPicker totalMinor={order.total_minor} data={fx.data} error={fx.error} value={choice} onChange={setChoice} />}
       <Label>Note (optional)<Textarea rows={3} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Packed in 25 kg bags, 4 pallets" /></Label>
       <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" className="accent-[#00994d] w-4 h-4" checked={vis} onChange={(e) => setVis(e.target.checked)} />Show this update to the customer on the tracking page</label></div></Modal>;
+}
+
+/** Change the recording currency / locked rate on an order that has not shipped yet. */
+function CurrencyModal({ order, onClose, onDone }: { order: Order; onClose: () => void; onDone: () => void }) {
+  const fx = useFxData(); const [choice, setChoice] = useState<FxChoice>(() => initialChoice(order)); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  async function go() { setBusy(true); setErr(''); try { await rpc('lock_order_currency', lockArgs(order.id, choice)); onDone(); } catch (e) { setErr(errMsg(e)); setBusy(false); } }
+  return <Modal title="Currency and exchange rate" wide onClose={onClose} footer={<><Btn variant="outline" onClick={onClose}>Back</Btn><Btn busy={busy} disabled={!fxReady(choice, fx.data)} onClick={go}>Save</Btn></>}>
+    <div className="space-y-4">{err && <Alert tone="error">{err}</Alert>}<FxPicker totalMinor={order.total_minor} data={fx.data} error={fx.error} value={choice} onChange={setChoice} /></div></Modal>;
 }
 
 function ShipModal({ order, onClose, onDone }: { order: Order; onClose: () => void; onDone: () => void }) {
