@@ -3,6 +3,7 @@ import { getMode, getNav, type Mode } from '@/lib/site';
 import Logo from '@/components/site/Logo';
 import CartButton from '@/components/cart/CartButton';
 import MobileNav from '@/components/site/MobileNav';
+import CurrencySelect from '@/components/fx/CurrencySelect';
 
 /**
  * One header for the whole public site. The visitor already chose Retail or Business on the first page, so there is no
@@ -22,6 +23,7 @@ export default async function Header({ mode: given }: { mode?: Mode }) {
     <Logo href={home} />
     <nav className="hidden md:flex items-center gap-6" aria-label="Main">{items.map((i) => <Link key={i.key} className="navlink" href={i.href}>{i.label}</Link>)}</nav>
     <div className="flex items-center gap-2">
+      <CurrencySelect />
       {nav.show_signin && <Link href="/account" className="navlink hidden lg:block">Sign in</Link>}
       {mode === 'retail' ? <CartButton /> : <Link href="/enquiry" className="btn !px-3 !py-2 md:!px-4 md:!py-3">Request quote <span>↗</span></Link>}
       <MobileNav items={items.map(({ key, label, href }) => ({ key, label, href }))} showSignin={nav.show_signin} />
