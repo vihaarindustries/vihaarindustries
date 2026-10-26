@@ -38,6 +38,8 @@ const ORDER_BASE: EmailVar[] = [
   { key: 'order_items', label: 'List of items ordered', sample: '2 × Turmeric Powder 200g\n1 × Red Chilli Powder 500g' },
   { key: 'shipping_address', label: 'Delivery address', sample: '12 MG Road\nAhmedabad, Gujarat - 380001\nIndia' },
   { key: 'payment_method', label: 'Payment method chosen', sample: 'UPI / bank transfer' },
+  { key: 'payable_amount', label: 'Amount payable (in the currency chosen when the order was accepted)', sample: '$14.79' },
+  { key: 'rate_note', label: 'Exchange-rate note (empty for rupee orders)', sample: 'Exchange rate locked: 1 USD = ₹84.50 (European Central Bank, 24 Oct 2026).' },
   { key: 'track_url', label: 'Link to the customer’s orders page', sample: 'https://www.example.com/account' },
 ];
 
@@ -91,7 +93,7 @@ export const EMAIL_EVENTS: EmailEvent[] = [
     vars: ORDER_BASE, buttonVar: 'track_url',
     defaults: {
       subject: 'Order accepted: {{order_number}}',
-      body: 'Hello {{name}},\n\nGood news: your order {{order_number}} has been accepted and is being prepared.\n\nPayment: {{payment_method}}\nOrder total: {{order_total}}\n\nIf you chose UPI / bank transfer, our team will share the payment details with you shortly.\n\nWe will email you the courier and tracking details as soon as it ships.',
+      body: 'Hello {{name}},\n\nGood news: your order {{order_number}} has been accepted and is being prepared.\n\nPayment: {{payment_method}}\nAmount payable: {{payable_amount}}\n{{rate_note}}\n\nIf you chose UPI / bank transfer, our team will share the payment details with you shortly.\n\nWe will email you the courier and tracking details as soon as it ships.',
       buttonLabel: 'View my order',
     },
   },
