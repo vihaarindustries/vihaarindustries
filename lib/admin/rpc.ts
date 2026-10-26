@@ -31,6 +31,11 @@ export const RPC: Record<string, RpcDef> = {
     p_order: uuid, p_courier: text(60, false, 1), p_tracking: text(80, false, 1), p_tracking_url: text(300), p_expected: odate, p_note: text(500) } },
   record_payment: { roles: OPS_FIN, mutating: true, params: {
     p_order: uuid, p_amount_minor: { t: 'int', min: 1, max: 1e11 }, p_method: { t: 'str', oneOf: PAYMENT_METHODS }, p_reference: text(80), p_received_on: odate } },
+  lock_order_currency: { roles: OPS_FIN, mutating: true, params: {
+    p_order: uuid, p_currency: { t: 'str', pattern: /^[A-Z]{3}$/ }, p_source: { t: 'str', optional: true, oneOf: ['ecb', 'exchangerate_api', 'oxr', 'manual'] },
+    p_manual_rate: { t: 'num', min: 0.000001, max: 100000, optional: true }, p_note: text(200) } },
+  add_manual_rate: { roles: FIN, mutating: true, params: {
+    p_currency: { t: 'str', pattern: /^[A-Z]{3}$/ }, p_rate: { t: 'num', min: 0.000001, max: 100000 }, p_date: odate, p_note: text(200) } },
   update_order_details: { roles: OPS, mutating: true, params: { p_order: uuid, p_patch: { t: 'obj', maxBytes: 6000 } } },
   add_order_note: { roles: OPS, mutating: true, params: { p_order: uuid, p_message: text(1000, false, 1), p_visible: { t: 'bool', optional: true } } },
   convert_enquiry_to_customer: { roles: OPS, mutating: true, params: { p_enquiry: uuid } },
