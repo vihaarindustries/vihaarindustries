@@ -4,6 +4,7 @@ import TrackVisit from '@/components/TrackVisit';
 import ChatbotWidget, { type ChatConfig } from '@/components/ChatbotWidget';
 import WhatsAppButton from '@/components/site/WhatsAppButton';
 import { CartProvider } from '@/components/cart/CartProvider';
+import CurrencyProvider from '@/components/fx/CurrencyProvider';
 import { getBusiness, getSetting } from '@/lib/site';
 import { whatsappLink } from '@/lib/business';
 
@@ -19,5 +20,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const [chat, b] = await Promise.all([getSetting<ChatConfig>('chatbot_config', { enabled: false }), getBusiness()]);
-  return <html lang="en"><body><CartProvider>{children}</CartProvider><TrackVisit /><WhatsAppButton href={whatsappLink(b)} label={`Chat with ${b.name} on WhatsApp`} /><ChatbotWidget config={{ enabled: chat.enabled, name: chat.name, greeting: chat.greeting, suggestions: chat.suggestions }} /></body></html>;
+  return <html lang="en"><body><CartProvider><CurrencyProvider>{children}</CurrencyProvider></CartProvider><TrackVisit /><WhatsAppButton href={whatsappLink(b)} label={`Chat with ${b.name} on WhatsApp`} /><ChatbotWidget config={{ enabled: chat.enabled, name: chat.name, greeting: chat.greeting, suggestions: chat.suggestions }} /></body></html>;
 }
