@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { publicMediaUrl } from '@/lib/media';
 import { effectivePrice } from '@/lib/pricing';
 import { fmtMoney, fmtNum } from '@/lib/format';
+import Approx from '@/components/fx/Approx';
 import type { DbProduct } from '@/lib/catalog';
 import AddToCart from './AddToCart';
 
@@ -24,7 +25,7 @@ export function RetailGrid({ items }: { items: DbProduct[] }) {
       <div className="p-5 flex flex-col flex-1"><div className="eyebrow !text-[9px]">{p.product_categories?.name ?? 'INGREDIENT'}</div><h3 className="text-xl font-black mt-2"><Link href={`/products/${p.slug}`} className="hover:underline">{p.name}</Link></h3>
         {p.short_description && <p className="muted text-sm mt-2">{p.short_description}</p>}
         <div className="mt-auto pt-4">
-          {price != null ? <p className="mb-4 text-sm"><b className="text-xl">{fmtMoney(price)}</b> <span className="muted">/ {p.unit}</span>{sale && <s className="muted ml-2">{fmtMoney(p.retail_price_minor)}</s>}{Number(p.tax_rate) > 0 && <span className="block text-[11px] muted mt-0.5">+ {fmtNum(p.tax_rate)}% GST</span>}</p> : <p className="mb-4 text-sm muted">Price on request</p>}
+          {price != null ? <p className="mb-4 text-sm"><b className="text-xl">{fmtMoney(price)}</b> <span className="muted">/ {p.unit}</span>{sale && <s className="muted ml-2">{fmtMoney(p.retail_price_minor)}</s>}{Number(p.tax_rate) > 0 && <span className="block text-[11px] muted mt-0.5">+ {fmtNum(p.tax_rate)}% GST</span>}<Approx minor={price} className="block text-xs muted mt-0.5" /></p> : <p className="mb-4 text-sm muted">Price on request</p>}
           {price != null ? <AddToCart product={{ id: p.id, slug: p.slug, name: p.name, unit: p.unit, price_minor: price, mrp_minor: p.retail_price_minor ?? price, tax_rate: Number(p.tax_rate ?? 0), image: url, min }} /> : <Link href="/enquiry" className="btn w-full">Ask about this product</Link>}
         </div></div></article>;
   })}</div>;
