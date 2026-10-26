@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useCart } from './CartProvider';
 import { fmtMoney } from '@/lib/format';
+import Approx, { CurrencyNote } from '@/components/fx/Approx';
 
 const STATES = ['Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'];
 
@@ -83,7 +84,8 @@ export default function CheckoutForm({ accountEmail, accountName }: { accountEma
           <div className="flex justify-between"><dt className="muted">Subtotal</dt><dd>{fmtMoney(subtotal_minor)}</dd></div>
           {est.disc > 0 && <div className="flex justify-between text-[#006b38]"><dt>Coupon discount</dt><dd>− {fmtMoney(est.disc)}</dd></div>}
           <div className="flex justify-between"><dt className="muted">GST (estimated)</dt><dd>{fmtMoney(est.tax)}</dd></div>
-          <div className="flex justify-between text-base font-black pt-2 border-t border-gray-100"><dt>Total</dt><dd>{fmtMoney(est.total)}</dd></div></dl>
+          <div className="flex justify-between text-base font-black pt-2 border-t border-gray-100"><dt>Total</dt><dd>{fmtMoney(est.total)}<Approx minor={est.total} className="block text-right text-xs font-normal muted" /></dd></div></dl>
+        <CurrencyNote className="text-xs muted mt-3" />
         <p className="text-xs muted mt-3">The final amount is confirmed when you place the order. Delivery charges, if any, are confirmed by our team.</p>
         {err && <p role="alert" className="text-sm text-red-700 mt-3">{err}</p>}
         <button className="btn w-full mt-5" disabled={busy}>{busy ? 'Placing order…' : 'Place order'}</button>
