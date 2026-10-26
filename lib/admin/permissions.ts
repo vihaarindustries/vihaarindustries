@@ -44,6 +44,7 @@ export const NAV: NavItem[] = [
   { key: 'referrals', label: 'Referrals', href: '/control-room/referrals', group: 'Marketing', roles: ['owner', 'admin', 'finance', 'content_manager', 'operations'] },
 
   { key: 'finance', label: 'Finance overview', href: '/control-room/finance', group: 'Finance', roles: ['owner', 'admin', 'finance'] },
+  { key: 'currency', label: 'Currency rates', href: '/control-room/finance/currency', group: 'Finance', roles: ['owner', 'admin', 'finance'] },
   { key: 'transactions', label: 'Record transaction', href: '/control-room/finance/transactions', group: 'Finance', roles: ['owner', 'admin', 'finance'] },
   { key: 'statements', label: 'Financial statements', href: '/control-room/finance/statements', group: 'Finance', roles: ['owner', 'admin', 'finance'] },
   { key: 'receivables', label: 'Receivables', href: '/control-room/finance/receivables', group: 'Finance', roles: ['owner', 'admin', 'finance'] },
