@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendEventEmail } from '@/lib/email/send';
 import { createService } from '@/lib/supabase/service';
+import { digitsFor, sourceLabel } from '@/lib/fx/currencies';
 
 /**
  * Customer emails for order and payment events. The wording lives in Control room -> Email templates.
@@ -13,8 +14,9 @@ const site = () => (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
 
 export function money(minor: unknown, currency = 'INR'): string {
   if (typeof minor !== 'number' || !Number.isFinite(minor)) return '';
-  try { return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency }).format(minor / 100); }
-  catch { return `${currency} ${(minor / 100).toFixed(2)}`; }
+  const d = digitsFor(currency); const v = minor / 10 ** d;           // yen has no minor unit, rupees and dollars have two decimals
+  try { return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency, minimumFractionDigits: d, maximumFractionDigits: d }).format(v); }
+  catch { return `${currency} ${v.toFixed(d)}`; }
 }
 const niceDate = (d?: string | null) => {
   if (!d) return '';
@@ -36,13 +38,20 @@ type OrderRow = {
   courier_provider: string | null; courier_reference: string | null; tracking_url: string | null; expected_delivery: string | null; shipping_address: Addr;
   customers: { name?: string | null; email?: string | null } | null;
   order_items: { product_name_snapshot: string; quantity: number }[] | null;
+  // set when staff choose another currency while accepting the order (migration 018)
+  record_currency?: string | null; fx_rate?: number | null; fx_source?: string | null; fx_rate_date?: string | null; record_total_minor?: number | null;
 };
 const ORDER_COLS = 'order_number, currency, total_minor, amount_paid_minor, payment_provider, courier_provider, courier_reference, tracking_url, expected_delivery, shipping_address, customers(name, email), order_items(product_name_snapshot, quantity)';
 
+const FX_COLS = ', record_currency, fx_rate, fx_source, fx_rate_date, record_total_minor';
 async function loadOrder(sb: SupabaseClient, by: { id: string } | { number: string }): Promise<OrderRow | null> {
-  const q = sb.from('orders').select(ORDER_COLS);
-  const { data } = await ('id' in by ? q.eq('id', by.id) : q.eq('order_number', by.number)).maybeSingle();
-  return (data as unknown as OrderRow | null) ?? null;
+  const run = async (cols: string) => {
+    const q = sb.from('orders').select(cols);
+    return ('id' in by ? q.eq('id', by.id) : q.eq('order_number', by.number)).maybeSingle();
+  };
+  let r = await run(ORDER_COLS + FX_COLS);
+  if (r.error) r = await run(ORDER_COLS);          // the currency columns do not exist until migration 018 is run: emails must still work
+  return (r.data as unknown as OrderRow | null) ?? null;
 }
 
 /** Placeholder values shared by every order email. */
@@ -51,6 +60,8 @@ function orderVars(o: OrderRow): Record<string, string> {
   return {
     order_number: o.order_number,
     order_total: money(o.total_minor, cur),
+    payable_amount: o.record_currency && o.record_total_minor != null ? money(o.record_total_minor, o.record_currency) : money(o.total_minor, cur),
+    rate_note: o.record_currency && o.fx_rate ? `Exchange rate locked: 1 ${o.record_currency} = ₹${Number(o.fx_rate).toFixed(2)} (${sourceLabel(o.fx_source ?? '')}${o.fx_rate_date ? ', ' + niceDate(o.fx_rate_date) : ''}).` : '',
     order_items: (o.order_items ?? []).map((i) => `${qty(Number(i.quantity))} × ${i.product_name_snapshot}`).join('\n'),
     shipping_address: addressText(o.shipping_address),
     payment_method: o.payment_provider ? (PAY_LABEL[o.payment_provider] ?? o.payment_provider) : '',
