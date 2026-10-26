@@ -33,6 +33,10 @@ const SETTINGS: Record<string, { read: StaffRole[]; write: StaffRole[]; schema: 
     enabled: { t: 'bool' }, name: s(40, false), greeting: s(300, false),
     suggestions: { t: 'arr', max: 6, of: { t: 'str', max: 80 } } } } },
   chatbot_knowledge: { read: CONTENT, write: CONTENT, schema: { t: 'shape', fields: { text: s(6000) } } },
+  // Website currency display: owners/admins change it; finance and operations can read it
+  fx_config: { read: ['owner', 'admin', 'finance', 'operations'], write: ADMIN, schema: { t: 'shape', fields: {
+    display_enabled: { t: 'bool' }, display_source: { t: 'str', oneOf: ['ecb', 'exchangerate_api', 'oxr', 'manual'] },
+    currencies: { t: 'arr', max: 12, optional: true, of: { t: 'str', max: 3, pattern: /^[A-Z]{3}$/ } }, max_age_days: { t: 'int', min: 1, max: 30 } } } },
   referral_program: { read: ['owner', 'admin', 'finance', 'content_manager', 'operations'], write: ADMIN, schema: { t: 'shape', fields: {
     enabled: { t: 'bool' }, referrer_reward_minor: { t: 'int', min: 0, max: 1e9 },
     referee_discount_type: { t: 'str', oneOf: ['percentage', 'fixed'] }, referee_discount_value: { t: 'num', min: 0, max: 1e9 }, min_order_minor: { t: 'int', min: 0, max: 1e10 } } } },
