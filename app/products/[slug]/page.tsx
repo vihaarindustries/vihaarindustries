@@ -9,6 +9,7 @@ import { getMode } from '@/lib/site';
 import { publicMediaUrl } from '@/lib/media';
 import { effectivePrice } from '@/lib/pricing';
 import { fmtMoney, fmtNum } from '@/lib/format';
+import Approx, { CurrencyNote } from '@/components/fx/Approx';
 
 type Params = { slug: string };
 type Ctx = { params: Promise<Params> | Params };
@@ -48,7 +49,7 @@ export default async function ProductPage({ params }: Ctx) {
         {p.short_description && <p className="muted mt-3 text-lg leading-7">{p.short_description}</p>}
         <div className="mt-6">
           {canBuy ? (price != null ? <>
-            <p className="text-sm"><b className="text-3xl">{fmtMoney(price)}</b> <span className="muted">/ {p.unit}</span>{sale && <s className="muted ml-2">{fmtMoney(p.retail_price_minor)}</s>}{Number(p.tax_rate) > 0 && <span className="block text-xs muted mt-1">+ {fmtNum(p.tax_rate)}% GST</span>}</p>
+            <p className="text-sm"><b className="text-3xl">{fmtMoney(price)}</b> <span className="muted">/ {p.unit}</span>{sale && <s className="muted ml-2">{fmtMoney(p.retail_price_minor)}</s>}{Number(p.tax_rate) > 0 && <span className="block text-xs muted mt-1">+ {fmtNum(p.tax_rate)}% GST</span>}<Approx minor={price} className="block text-sm muted mt-1" /></p><CurrencyNote className="text-xs muted mt-1" />
             <div className="mt-5 max-w-xs"><AddToCart product={{ id: p.id, slug: p.slug, name: p.name, unit: p.unit, price_minor: price, mrp_minor: p.retail_price_minor ?? price, tax_rate: Number(p.tax_rate ?? 0), image: images[0]?.url ?? null, min }} /></div></>
             : <><p className="muted text-sm">Price on request</p><Link href={`/enquiry?product=${encodeURIComponent(p.slug)}`} className="btn mt-4">Ask about this product ↗</Link></>)
             : <div className="flex flex-wrap gap-3"><Link href={`/enquiry?product=${encodeURIComponent(p.slug)}`} className="btn">Request quote ↗</Link><Link href={`/enquiry?product=${encodeURIComponent(p.slug)}&type=sample`} className="btn btn-outline">Request a sample</Link></div>}
