@@ -34,7 +34,13 @@ function Cell({ c, row }: { c: ColumnDef; row: Row }) {
 }
 
 export default function ResourceManager(p: ResourceManagerProps) {
-  const def = getResource(p.resource)!;
+  const def = getResource(p.resource);
+  if (!def) return <Alert tone="error">This section is not set up yet (unknown resource “{p.resource}”).</Alert>;
+  return <ResourceManagerInner {...p} def={def} />;
+}
+
+function ResourceManagerInner(p: ResourceManagerProps & { def: NonNullable<ReturnType<typeof getResource>> }) {
+  const def = p.def;
   const role = useRole();
   const canWrite = def.write.includes(role) && def.creatable !== false;
   const canEdit = def.write.includes(role);
