@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Logo from '@/components/site/Logo';
+import Scene from '@/components/fx/Scene';
 import Footer from '@/components/site/Footer';
 import { getBusiness } from '@/lib/site';
 
@@ -13,6 +14,7 @@ export default async function Home() {
   const b = await getBusiness();
   return (
     <main className="choice-page min-h-screen overflow-hidden">
+      <Scene variant="home" mode="fixed" />
       <div className="choice-glow choice-glow-one" aria-hidden="true" />
       <div className="choice-glow choice-glow-two" aria-hidden="true" />
       <header className="container flex items-center justify-between py-6 relative z-10">
