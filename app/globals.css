@@ -10,3 +10,8 @@
   body { background: #fff !important; }
   .admin-shell main { padding: 0 !important; max-width: none !important; }
 }
+
+/* ===== 3D scene (components/fx/Scene3D.tsx) ===== */
+.scene-ready .scene-fallback>*{visibility:hidden}
+.choice-page .choice-card{background:linear-gradient(145deg,#14231ad6,#101812d6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.choice-page .choice-card-business{background:linear-gradient(145deg,#252d27d6,#151b17d6)}
