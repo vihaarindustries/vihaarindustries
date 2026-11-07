@@ -15,3 +15,39 @@
 .scene-ready .scene-fallback>*{visibility:hidden}
 .choice-page .choice-card{background:linear-gradient(145deg,#14231ad6,#101812d6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 .choice-page .choice-card-business{background:linear-gradient(145deg,#252d27d6,#151b17d6)}
+
+/* ===== Whole-site dark glass theme over the 3D scene (html.s3d is set on every public page, never in the control room) ===== */
+html.s3d{background:#09120d;color-scheme:dark}
+html.s3d body{background:transparent;color:#e6efe8}
+html.s3d body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 70% 60% at 50% 45%,#09120d99,transparent 75%)}
+html.s3d .choice-page{background:transparent}
+html.s3d .muted{color:#9db1a3}
+html.s3d .eyebrow{color:#3fd488}
+html.s3d .navlink{color:#cfe0d4}html.s3d .navlink:hover{color:#42dc8b}
+html.s3d .btn-outline{color:#e6efe8;border-color:#ffffff36}html.s3d .btn-outline:hover{background:#ffffff14}
+html.s3d .switch-link{color:#cfe0d4;border-color:#ffffff30}
+html.s3d .product-card{background:#101c15a3;border-color:#ffffff1f;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+html.s3d .product-card:hover{box-shadow:0 22px 60px #0007;border-color:#35c98066}
+html.s3d .product-art{background:linear-gradient(145deg,#1b2b21,#23362a)}
+html.s3d .field{background:#0c1710d9;color:#eaf3ec;border-color:#ffffff2b}
+html.s3d .field::placeholder{color:#7f9488}
+html.s3d .field option,html.s3d select option{background:#13201a;color:#eaf3ec}
+/* light surfaces become dark glass */
+html.s3d .bg-white{background-color:#0f1c15b3!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+html.s3d .bg-gray-50,html.s3d .bg-\[\#f7f7f1\],html.s3d .bg-\[\#f1faf5\],html.s3d .bg-\[\#f2eee1\]{background-color:#ffffff0d!important}
+html.s3d .bg-gray-100{background-color:#ffffff14!important}html.s3d .bg-gray-200{background-color:#ffffff22!important}
+html.s3d .bg-\[\#e9eee7\],html.s3d .bg-\[\#e3f4e9\]{background-color:#28c77926!important}
+html.s3d .bg-red-50{background-color:#ff50501f!important}html.s3d .bg-amber-50{background-color:#ffb40022!important}html.s3d .bg-blue-50{background-color:#508cff22!important}
+html.s3d section.bg-\[\#111611\],html.s3d section.bg-\[\#151915\]{background-color:#09120d3d!important}
+html.s3d section.bg-\[\#e9eee7\]{background-color:#0f1c1566!important;backdrop-filter:blur(8px)}
+html.s3d section.bg-\[\#00994d\]{background-color:#00994dd9!important;backdrop-filter:blur(10px)}
+html.s3d footer.bg-\[\#111611\]{background-color:#09120dcc!important;backdrop-filter:blur(14px)}
+html.s3d header.bg-white{background-color:#09120dcc!important}
+/* text colours made for light backgrounds */
+html.s3d .text-\[\#171917\],html.s3d .text-black,html.s3d .text-gray-900,html.s3d .text-gray-800{color:#eaf3ec!important}
+html.s3d .text-gray-700,html.s3d .text-gray-600{color:#c5d5ca!important}html.s3d .text-gray-500{color:#9db1a3!important}
+html.s3d .text-\[\#006b38\],html.s3d .text-vihaar-deep,html.s3d .text-\[\#008b47\],html.s3d .text-vihaar-green{color:#4fe09a!important}
+html.s3d section.bg-\[\#00994d\] .text-\[\#006b38\]{color:#006b38!important}
+html.s3d .text-red-600,html.s3d .text-red-700,html.s3d .text-red-800{color:#ff9a9a!important}html.s3d .text-amber-900{color:#ffd48a!important}html.s3d .text-blue-900{color:#a8cdff!important}
+html.s3d .border-gray-100,html.s3d .border-gray-200,html.s3d .border-gray-300,html.s3d .border-black\/5,html.s3d .border-black\/10{border-color:#ffffff1f!important}
+html.s3d .divide-gray-100>*+*,html.s3d .divide-gray-200>*+*{border-color:#ffffff1a!important}
