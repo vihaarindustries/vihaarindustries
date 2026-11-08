@@ -3,6 +3,7 @@ import { Mail, MapPin, Phone } from 'lucide-react';
 import { getBusiness, getMode } from '@/lib/site';
 import { addressLines, marketplaceLinks, socialLinks, telLink } from '@/lib/business';
 import { MarketplaceChips, SocialIcons } from './Social';
+import EffectsToggle from '@/components/fx/EffectsToggle';
 
 /** One footer for every public page. All details come from the control room's Business information page. */
 export default async function Footer({ mode: given, home = false }: { mode?: 'retail' | 'business'; home?: boolean }) {
@@ -37,6 +38,7 @@ export default async function Footer({ mode: given, home = false }: { mode?: 're
     </div>
     <div className="container border-t border-white/10 mt-9 pt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] text-gray-500">
       <span>© {new Date().getFullYear()} {b.legal_name || b.name}. All rights reserved.{ids.length > 0 && <span className="ml-3">{ids.join('  ·  ')}</span>}</span>
+      <EffectsToggle />
       {!home && <Link href={mode === 'retail' ? '/business' : '/retail'} className="text-gray-500 hover:text-white">{mode === 'retail' ? 'Looking to buy in bulk? Business portal →' : 'Buying for yourself? Retail store →'}</Link>}
     </div>
   </footer>;
