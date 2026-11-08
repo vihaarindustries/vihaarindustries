@@ -4,6 +4,8 @@ import Footer from '@/components/site/Footer';
 import ModeSetter from '@/components/site/ModeSetter';
 import TrustBlock from '@/components/site/TrustBlock';
 import EnquiryForm from '@/components/site/EnquiryForm';
+import QuoteBuilder from '@/components/site/QuoteBuilder';
+import ExportGlobe from '@/components/fx/ExportGlobe';
 import { BusinessGrid } from '@/components/site/ProductCards';
 import { loadCatalog, sectionOrder } from '@/lib/catalog';
 import { getBusiness } from '@/lib/site';
@@ -30,6 +32,8 @@ export default async function Business() {
   };
   return <><Header mode="business" /><ModeSetter mode="business" /><main>
     <section className="relative overflow-hidden bg-[#151915] text-white py-16 md:py-24"><div className="container relative z-10 max-w-4xl"><div className="eyebrow !text-[#5dd795]">FOR BUSINESS BUYERS</div><h1 className="text-4xl md:text-6xl font-black tracking-tight mt-4">Source with confidence.<br /><span className="text-[#20bd70]">Scale with {b.name.split(' ')[0]}.</span></h1><p className="text-gray-300 max-w-2xl leading-7 mt-5">Tell us about your volumes, product requirements, packaging and delivery destination. Our business workflow is designed for bulk supply and export quotations.</p><div className="flex flex-wrap gap-3 mt-7"><Link href="#enquiry" className="btn">Request a business quotation ↗</Link><Link href="#products" className="btn btn-outline !text-white !border-white/30">Browse products ↓</Link></div><div className="flex flex-wrap gap-x-7 gap-y-3 mt-10 text-xs text-gray-300"><span>✓ Domestic &amp; export enquiries</span><span>✓ Specification-led supply</span><span>✓ Documentation support</span></div></div></section>
+    <ExportGlobe />
+    <QuoteBuilder products={items.map((p) => ({ slug: p.slug, name: p.name, unit: p.unit, moq: Number(p.min_order_quantity ?? 0) }))} />
     {[...sectionOrder(sections, DEFAULT_ORDER), ...(sectionOrder(sections, DEFAULT_ORDER).includes('cta') ? [] : ['cta'])].map((k) => <div key={k} style={{ display: 'contents' }}>{S[k]}</div>)}
   </main><Footer mode="business" /></>;
 }
