@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/site/Footer';
 import AddToCart from '@/components/site/AddToCart';
+import ProductGallery from '@/components/site/ProductGallery';
 import { loadProduct } from '@/lib/catalog';
 import { getMode } from '@/lib/site';
 import { publicMediaUrl } from '@/lib/media';
@@ -16,7 +17,12 @@ type Ctx = { params: Promise<Params> | Params };
 
 export async function generateMetadata({ params }: Ctx): Promise<Metadata> {
   const p = await loadProduct((await params).slug);
-  return p ? { title: p.name, description: p.short_description ?? undefined } : { title: 'Product not found' };
+  if (!p) return { title: 'Product not found' };
+  const img = [...(p.product_media ?? [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order).map((m) => publicMediaUrl('product-media', m.storage_path)).find(Boolean);
+  const description = p.short_description ?? undefined;
+  return { title: p.name, description, alternates: { canonical: `/products/${p.slug}` },
+    openGraph: { type: 'website', title: p.name, description, url: `/products/${p.slug}`, ...(img ? { images: [{ url: img, alt: p.name }] } : {}) },
+    twitter: { card: img ? 'summary_large_image' : 'summary', title: p.name, description, ...(img ? { images: [img] } : {}) } };
 }
 
 /** Full product page. Everything here is entered in the control room (Products): photos, descriptions, ingredients, specifications and price. */
@@ -36,13 +42,14 @@ export default async function ProductPage({ params }: Ctx) {
     p.origin && ['Origin', p.origin], p.shelf_life_days && ['Shelf life', `${p.shelf_life_days} days`], p.sku && ['SKU', p.sku],
     p.min_order_quantity && Number(p.min_order_quantity) > 0 && ['Minimum order', `${fmtNum(p.min_order_quantity)} ${p.unit}`],
   ].filter(Boolean) as string[][];
-  return <><Header /><main className="container py-10 md:py-14">
+  // Product details in a form search engines understand (can show price and photo in Google results)
+  const ld = { '@context': 'https://schema.org', '@type': 'Product', name: p.name, description: p.short_description ?? p.description ?? undefined, sku: p.sku ?? undefined,
+    image: images.length ? images.map((m) => m.url) : undefined, brand: { '@type': 'Brand', name: 'Vihaar Industries' }, category: p.product_categories?.name,
+    ...(canBuy && price != null ? { offers: { '@type': 'Offer', priceCurrency: 'INR', price: (price / 100).toFixed(2), availability: 'https://schema.org/InStock', url: `${(process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '')}/products/${p.slug}` } } : {}) };
+  return <><Header /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld).replace(/</g, '\u003c') }} /><main className="container py-10 md:py-14">
     <nav className="text-xs muted mb-6" aria-label="Breadcrumb"><Link href={retail ? '/retail#products' : '/business#products'} className="hover:underline">← All products</Link></nav>
     <div className="grid md:grid-cols-2 gap-10 items-start">
-      <div>
-        <div className="aspect-square overflow-hidden rounded-xl border border-gray-200 bg-[#f2eee1] flex items-center justify-center">{images[0] ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={images[0].url} alt={images[0].alt} className="w-full h-full object-cover" /> : <div className="spice-dot" style={{ background: '#e8ddbf' }}>🌿</div>}</div>
-        {images.length > 1 && <div className="grid grid-cols-4 gap-3 mt-3">{images.slice(1, 9).map((m) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={m.url} src={m.url} alt={m.alt} loading="lazy" className="w-full aspect-square object-cover rounded-lg border border-gray-200" />)}</div>}
-      </div>
+      <ProductGallery images={images} name={p.name} category={p.product_categories?.name} />
       <div>
         <div className="eyebrow">{p.product_categories?.name ?? 'INGREDIENT'}</div>
         <h1 className="text-3xl md:text-4xl font-black tracking-tight mt-2">{p.name}</h1>
