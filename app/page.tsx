@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Logo from '@/components/site/Logo';
 import Footer from '@/components/site/Footer';
+import FarmStory from '@/components/fx/FarmStory';
 import { getBusiness } from '@/lib/site';
 
 const benefits = [
@@ -12,7 +13,7 @@ const benefits = [
 export default async function Home() {
   const b = await getBusiness();
   return (
-    <main className="choice-page min-h-screen overflow-hidden">
+    <main className="choice-page min-h-screen overflow-x-clip">
       <div className="choice-glow choice-glow-one" aria-hidden="true" />
       <div className="choice-glow choice-glow-two" aria-hidden="true" />
       <header className="container flex items-center justify-between py-6 relative z-10">
@@ -45,6 +46,7 @@ export default async function Home() {
         <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-xs text-gray-400 mt-8"><span>✓ Domestic & export enquiries</span><span>✓ Retail and bulk supply</span><span>✓ Quality-first approach</span></div>
       </section>
 
+      <FarmStory />
       <section className="choice-benefits relative z-10">
         <div className="container grid sm:grid-cols-3 gap-7 py-8 md:py-10">
           {benefits.map((item) => <div key={item.number} className="flex gap-4"><div className="text-[#28c779] text-sm font-black pt-1">{item.number}</div><div><h3 className="text-white font-bold">{item.title}</h3><p className="text-sm text-gray-400 leading-6 mt-2">{item.text}</p></div></div>)}
