@@ -1,11 +1,29 @@
 'use client';
 import { useState } from 'react';
+import { ClipboardCheck, PackageCheck, ShoppingBag, Truck } from 'lucide-react';
 
 type Res = { order: { order_number: string; status: string; payment_status: string; placed_at: string; shipped_at: string | null; delivered_at: string | null; expected_delivery: string | null; courier_provider: string | null; courier_reference: string | null; tracking_url: string | null }; events: { event_type: string; to_status: string | null; message: string | null; created_at: string }[] };
 // Customers see four simple stages: Placed -> Accepted -> Shipped -> Delivered. "pending_payment" is the first stage's database name.
 const STEPS = ['pending_payment', 'confirmed', 'shipped', 'delivered'];
 const NAMES: Record<string, string> = { pending_payment: 'Placed', draft: 'Placed', confirmed: 'Accepted', processing: 'Accepted', packed: 'Accepted', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', refunded: 'Refunded' };
 const stepOf = (st: string) => (st === 'processing' || st === 'packed' ? 'confirmed' : st === 'draft' ? 'pending_payment' : st);
+const ICONS = [ShoppingBag, ClipboardCheck, Truck, PackageCheck];
+/** Animated progress: the line fills, a little truck drives to the current stage and each stage pops in. */
+function Progress({ idx }: { idx: number }) {
+  const w = `${(idx / (STEPS.length - 1)) * 100}%`;
+  return <div className="mt-9" role="list" aria-label="Order progress">
+    <div className="relative mx-[12.5%]">
+      <div className="track-line" style={{ ['--w' as string]: w }}>
+        <div className="track-fill" />
+        {idx > 0 && idx < STEPS.length - 1 && <Truck className="track-truck text-[#4fe09a]" size={26} aria-hidden="true" />}
+        {STEPS.map((s, i) => { const Icon = ICONS[i]; const done = i <= idx; return <span key={s} role="listitem" aria-label={`${NAMES[s] ?? s}${i === idx ? ' (current)' : done ? ' (done)' : ''}`}
+          className={`track-node ${i === idx ? 'is-now' : ''} absolute top-1/2 w-10 h-10 -mt-5 -ml-5 rounded-full flex items-center justify-center border-2 ${done ? 'bg-[#00994d] border-[#4fe09a] text-white' : 'bg-[#0f1c15] border-white/25 text-gray-500'}`}
+          style={{ left: `${(i / (STEPS.length - 1)) * 100}%`, animationDelay: `${i * 0.28}s` }}><Icon size={17} /></span>; })}
+      </div>
+    </div>
+    <div className="grid grid-cols-4 mt-7 text-center">{STEPS.map((s, i) => <div key={s} className={`text-[11px] font-bold ${i <= idx ? 'text-vihaar-deep' : 'text-gray-400'}`}>{NAMES[s] ?? s}</div>)}</div>
+  </div>;
+}
 const nice = (s: string) => NAMES[s] ?? s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 const d = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -30,7 +48,7 @@ export default function TrackForm() {
     </form>
     {res && <section className="bg-white border border-gray-200 rounded-xl p-6 mt-6" aria-live="polite">
       <div className="flex justify-between items-start gap-3"><div><div className="text-xs muted">Order</div><div className="font-black text-xl">{res.order.order_number}</div></div><span className="text-xs font-bold bg-[#e3f4e9] text-[#006b38] rounded-full px-3 py-1.5">{nice(res.order.status)}</span></div>
-      {idx >= 0 && <ol className="flex mt-6">{STEPS.map((s, i) => <li key={s} className="flex-1 text-center"><div className={`h-1.5 ${i <= idx ? 'bg-vihaar-green' : 'bg-gray-200'}`} /><div className={`text-[10px] mt-1.5 font-bold ${i <= idx ? 'text-vihaar-deep' : 'text-gray-400'}`}>{nice(s)}</div></li>)}</ol>}
+      {idx >= 0 && <Progress idx={idx} />}
       <dl className="text-sm mt-6 space-y-1.5"><div className="flex justify-between"><dt className="muted">Placed</dt><dd>{d(res.order.placed_at)}</dd></div>
         {res.order.expected_delivery && <div className="flex justify-between"><dt className="muted">Expected delivery</dt><dd>{d(res.order.expected_delivery)}</dd></div>}
         {res.order.courier_provider && <div className="flex justify-between"><dt className="muted">Courier</dt><dd>{res.order.courier_provider}{res.order.courier_reference ? ` · ${res.order.courier_reference}` : ''}</dd></div>}
