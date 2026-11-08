@@ -93,7 +93,13 @@ export default function Scene3D({ variant = 'home', mode = 'fixed' }: SceneProps
     try { renderer = new THREE.WebGLRenderer({ canvas, antialias: !lowPower, alpha: true, powerPreference: 'high-performance' }); } catch { return; } // no WebGL: page simply shows without the scene
     renderer.setClearAlpha(0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPower ? 1.25 : 1.75));
+    // Quality tier: 0 full, 1 medium, 2 low, 3 off. The loop below steps it down by itself if this device cannot keep up,
+    // and remembers the result for the rest of the visit (sessionStorage), so the next page starts at the right level.
+    const RATIO = [lowPower ? 1.25 : 1.75, 1.25, 1, 1]; const KEEP = [1, 0.6, 0.3, 0];
+    let tier = lowPower ? 1 : 0; try { const saved = sessionStorage.getItem('vi-fx-tier'); if (saved !== null) tier = clamp(Number(saved) || 0, 0, 3); } catch { /* storage blocked */ }
+    if (tier >= 3) { renderer.dispose(); return; }
+    const dpr = window.devicePixelRatio || 1;
+    renderer.setPixelRatio(Math.min(dpr, RATIO[tier]));
 
     const scene = new THREE.Scene(); scene.fog = new THREE.Fog(FOG[variant], 11, 27);
     const pm = new THREE.PMREMGenerator(renderer); const env = pm.fromScene(new RoomEnvironment(), 0.04); scene.environment = env.texture;
@@ -192,6 +198,12 @@ export default function Scene3D({ variant = 'home', mode = 'fixed' }: SceneProps
     const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(dp, 3));
     const dm = new THREE.PointsMaterial({ size: 0.05, color: '#a9ecc6', transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
     const dust = new THREE.Points(dg, dm); scene.add(dust);
+    let stopped = false; let resizeFn: () => void = () => {};
+    const applyTier = () => {
+      for (const fl of fields) fl.mesh.count = Math.max(1, Math.floor(fl.items.length * KEEP[tier]));
+      dg.setDrawRange(0, Math.max(1, Math.floor(dustN * KEEP[tier])));
+      renderer.setPixelRatio(Math.min(dpr, RATIO[tier])); resizeFn();
+    };
 
     // ---------- sizing ----------
     const dummy = new THREE.Object3D(); let W = 1, H = 1;
@@ -199,28 +211,40 @@ export default function Scene3D({ variant = 'home', mode = 'fixed' }: SceneProps
       W = mode === 'fixed' ? window.innerWidth : parent.clientWidth; H = mode === 'fixed' ? window.innerHeight : parent.clientHeight;
       if (!W || !H) return; renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); halfW = (visH * camera.aspect) / 2;
     };
-    resize();
+    resize(); resizeFn = resize; applyTier();
     const ro = new ResizeObserver(resize); ro.observe(mode === 'fixed' ? document.documentElement : parent);
 
     // ---------- input ----------
     let tx = 0, ty = 0, mx = 0, my = 0;
     const onMove = (e: PointerEvent) => { tx = (e.clientX / window.innerWidth - 0.5) * 2; ty = (e.clientY / window.innerHeight - 0.5) * 2; };
-    window.addEventListener('pointermove', onMove, { passive: true });
+    let kick = 0; const onNav = () => { kick = 1; };
+    window.addEventListener('vi-fx-nav', onNav); window.addEventListener('pointermove', onMove, { passive: true });
     let visible = true; const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; }); if (mode === 'hero') io.observe(parent);
     const progress = () => { if (mode === 'fixed') return window.scrollY / window.innerHeight; const r = parent.getBoundingClientRect(); return -r.top / Math.max(1, r.height); };
 
     // ---------- loop ----------
     const clock = new THREE.Clock(); let time = 0, sp = progress(), lastP = sp, vel = 0, spin = 0, raf = 0, ready = false;
     const host = parent.closest('[data-scene-host]');
-    const frame = () => {
+    let lastT = 0, acc = 0, nF = 0, bad = 0, warmUntil = performance.now() + 2500;
+    const step = (to: number) => {
+      tier = to; bad = 0; warmUntil = performance.now() + 1500; try { sessionStorage.setItem('vi-fx-tier', String(tier)); } catch { /* ignore */ }
+      if (tier >= 3) { stopped = true; cancelAnimationFrame(raf); canvas.style.display = 'none'; window.dispatchEvent(new Event('vi-fx-auto-off')); return; }
+      applyTier();
+    };
+    const frame = (now: number = performance.now()) => {
+      if (stopped) return;
       if (!reduce) raf = requestAnimationFrame(frame);
+      if (!reduce) { // frame-rate watchdog: two slow half-second windows in a row = step the quality down one level
+        const d = now - lastT; lastT = now;
+        if (visible && d > 0 && d < 250 && now > warmUntil) { acc += d; nF++; if (nF >= 30) { bad = acc / nF > 26 ? bad + 1 : 0; acc = 0; nF = 0; if (bad >= 2) step(tier + 1); } } else if (d >= 250) { acc = 0; nF = 0; }
+      }
       if (!visible || !W) return;
       const dt = Math.min(0.05, clock.getDelta()); time += reduce ? 0 : dt;
       const p = progress(); vel += ((p - lastP) / Math.max(dt, 0.001) - vel) * Math.min(1, dt * 8); lastP = p;
       sp += (p - sp) * Math.min(1, dt * 7); mx += (tx - mx) * Math.min(1, dt * 4); my += (ty - my) * Math.min(1, dt * 4);
-      spin += clamp(vel, -4, 4) * dt * 3.2; // scrolling / swiping spins everything
+      kick *= Math.exp(-dt * 2.2); spin += clamp(vel, -4, 4) * dt * 3.2 + kick * dt * 7; // scrolling / swiping / changing page spins everything
 
-      camera.position.set(mx * 0.7, -sp * visH - my * 0.25, CAM_Z); camera.rotation.set(-my * 0.03, -mx * 0.05, 0);
+      camera.position.set(mx * 0.7, -sp * visH - my * 0.25, CAM_Z - kick * 2.2); camera.rotation.set(-my * 0.03, -mx * 0.05, 0);
       for (const h of heroes) {
         const { a, obj, holder, i } = h;
         holder.position.set(a.xf * halfW, visH * (0.5 - a.f) + Math.sin(time * 0.8 + i * 1.7) * 0.12, a.z);
@@ -228,7 +252,7 @@ export default function Scene3D({ variant = 'home', mode = 'fixed' }: SceneProps
         obj.rotation.set((a.tilt ?? 0) * 0.6 - my * 0.15, time * (big ? 0.35 : 0.6) + spin * (big ? 1 : 1.4) + mx * (big ? 0.6 : 0.3) + i, a.kind === 'jar' ? (a.tilt ?? 0) : (a.tilt ?? 0) * 0.5);
       }
       for (const f of fields) {
-        for (let k = 0; k < f.items.length; k++) {
+        for (let k = 0; k < f.mesh.count; k++) {
           const it = f.items[k];
           dummy.position.set(it.xf * halfW, it.y + Math.sin(time * 0.6 + it.ph) * 0.18, it.z);
           dummy.rotation.set(it.r0[0] + time * it.v[0] + spin * 0.4, it.r0[1] + time * it.v[1] + spin * 0.6, it.r0[2] + time * it.v[2]);
@@ -240,10 +264,10 @@ export default function Scene3D({ variant = 'home', mode = 'fixed' }: SceneProps
       renderer.render(scene, camera);
       if (!ready) { ready = true; host?.classList.add('scene-ready'); }
     };
-    frame(); if (reduce) window.addEventListener('resize', frame);
+    frame(); const onStaticResize = () => frame(); if (reduce) window.addEventListener('resize', onStaticResize);
 
     return () => {
-      cancelAnimationFrame(raf); ro.disconnect(); io.disconnect(); window.removeEventListener('pointermove', onMove); window.removeEventListener('resize', frame);
+      cancelAnimationFrame(raf); ro.disconnect(); io.disconnect(); window.removeEventListener('pointermove', onMove); window.removeEventListener('vi-fx-nav', onNav); window.removeEventListener('resize', onStaticResize); 
       host?.classList.remove('scene-ready');
       scene.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });
       Object.values(G).forEach((g) => g.dispose()); Object.values(M).forEach((m) => m.dispose()); textures.forEach((t) => t.dispose()); dg.dispose(); dm.dispose();
