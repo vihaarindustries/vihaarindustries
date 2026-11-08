@@ -51,3 +51,26 @@ html.s3d section.bg-\[\#00994d\] .text-\[\#006b38\]{color:#006b38!important}
 html.s3d .text-red-600,html.s3d .text-red-700,html.s3d .text-red-800{color:#ff9a9a!important}html.s3d .text-amber-900{color:#ffd48a!important}html.s3d .text-blue-900{color:#a8cdff!important}
 html.s3d .border-gray-100,html.s3d .border-gray-200,html.s3d .border-gray-300,html.s3d .border-black\/5,html.s3d .border-black\/10{border-color:#ffffff1f!important}
 html.s3d .divide-gray-100>*+*,html.s3d .divide-gray-200>*+*{border-color:#ffffff1a!important}
+
+/* ===== Page transitions & tilting glass cards ===== */
+@keyframes pageIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+html.s3d .page-enter{animation:pageIn .55s cubic-bezier(.2,.8,.2,1) backwards}
+.product-card,.choice-card{--rx:0deg;--ry:0deg;--gx:50%;--gy:50%}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){
+  html.s3d .product-card,html.s3d .choice-card{position:relative;transform:perspective(1000px) rotateX(var(--rx)) rotateY(var(--ry));transition:transform .45s cubic-bezier(.2,.8,.2,1),box-shadow .3s,border-color .22s;will-change:transform}
+  html.s3d .product-card.is-tilting,html.s3d .choice-card.is-tilting{transition:transform .08s linear,box-shadow .3s,border-color .22s;box-shadow:0 30px 70px #0008}
+  html.s3d .product-card::after,html.s3d .choice-card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s;background:radial-gradient(circle at var(--gx) var(--gy),#ffffff2e,transparent 55%);z-index:3}
+  html.s3d .product-card.is-tilting::after,html.s3d .choice-card.is-tilting::after{opacity:1}
+}
+
+/* ===== Animated order tracking ===== */
+@keyframes trackFill{from{width:0}to{width:var(--w)}}
+@keyframes trackDrive{from{left:0}to{left:var(--w)}}
+@keyframes nodePop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}
+@keyframes nodePulse{0%{box-shadow:0 0 0 0 #29ca7899}100%{box-shadow:0 0 0 16px #29ca7800}}
+.track-line{position:relative;height:6px;border-radius:99px;background:#ffffff1f}
+.track-fill{position:absolute;inset:0 auto 0 0;border-radius:99px;background:linear-gradient(90deg,#00994d,#4fe09a);width:var(--w);animation:trackFill 1.3s cubic-bezier(.3,.7,.2,1) both}
+.track-truck{position:absolute;top:-17px;transform:translateX(-50%);animation:trackDrive 1.3s cubic-bezier(.3,.7,.2,1) both;filter:drop-shadow(0 4px 6px #0008)}
+.track-node{animation:nodePop .5s cubic-bezier(.3,1.5,.5,1) both}
+.track-node.is-now{animation:nodePop .5s cubic-bezier(.3,1.5,.5,1) both,nodePulse 1.8s ease-out 1.3s infinite}
+@media(prefers-reduced-motion:reduce){.track-fill,.track-truck,.track-node,.track-node.is-now,html.s3d .page-enter{animation:none!important}}
